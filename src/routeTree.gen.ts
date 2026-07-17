@@ -9,309 +9,541 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AppRouteImport } from './routes/_app'
-import { Route as AppIndexRouteImport } from './routes/_app.index'
-import { Route as AppSettingsRouteImport } from './routes/_app.settings'
-import { Route as AppReportsRouteImport } from './routes/_app.reports'
-import { Route as AppProfileRouteImport } from './routes/_app.profile'
-import { Route as AppPayrollRouteImport } from './routes/_app.payroll'
-import { Route as AppLeaveRouteImport } from './routes/_app.leave'
-import { Route as AppEmployeesRouteImport } from './routes/_app.employees'
-import { Route as AppCalendarRouteImport } from './routes/_app.calendar'
-import { Route as AppAttendanceRouteImport } from './routes/_app.attendance'
-import { Route as AppApprovalsRouteImport } from './routes/_app.approvals'
-import { Route as AppAdminRouteImport } from './routes/_app.admin'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as EmployeeLayoutRouteImport } from './routes/employee/_layout'
+import { Route as AdminLayoutRouteImport } from './routes/admin/_layout'
+import { Route as EmployeeLayoutProfileRouteImport } from './routes/employee/_layout/profile'
+import { Route as EmployeeLayoutPayslipsRouteImport } from './routes/employee/_layout/payslips'
+import { Route as EmployeeLayoutLeaveHistoryRouteImport } from './routes/employee/_layout/leave-history'
+import { Route as EmployeeLayoutDashboardRouteImport } from './routes/employee/_layout/dashboard'
+import { Route as EmployeeLayoutCalendarRouteImport } from './routes/employee/_layout/calendar'
+import { Route as EmployeeLayoutApplyLeaveRouteImport } from './routes/employee/_layout/apply-leave'
+import { Route as AdminLayoutSettingsRouteImport } from './routes/admin/_layout/settings'
+import { Route as AdminLayoutReportsRouteImport } from './routes/admin/_layout/reports'
+import { Route as AdminLayoutProfileRouteImport } from './routes/admin/_layout/profile'
+import { Route as AdminLayoutPayrollRouteImport } from './routes/admin/_layout/payroll'
+import { Route as AdminLayoutOverviewRouteImport } from './routes/admin/_layout/overview'
+import { Route as AdminLayoutNotificationsRouteImport } from './routes/admin/_layout/notifications'
+import { Route as AdminLayoutLeavesRouteImport } from './routes/admin/_layout/leaves'
+import { Route as AdminLayoutHolidaysRouteImport } from './routes/admin/_layout/holidays'
+import { Route as AdminLayoutDashboardRouteImport } from './routes/admin/_layout/dashboard'
+import { Route as AdminLayoutCalendarRouteImport } from './routes/admin/_layout/calendar'
+import { Route as AdminLayoutAttendanceRouteImport } from './routes/admin/_layout/attendance'
+import { Route as AdminLayoutEmployeesIndexRouteImport } from './routes/admin/_layout/employees/index'
+import { Route as AdminLayoutEmployeesAddRouteImport } from './routes/admin/_layout/employees/add'
+import { Route as AdminLayoutEmployeesEmployeeIdRouteImport } from './routes/admin/_layout/employees/$employeeId'
 
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AppRoute = AppRouteImport.update({
-  id: '/_app',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AppIndexRoute = AppIndexRouteImport.update({
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AppSettingsRoute = AppSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AppRoute,
+const EmployeeLayoutRoute = EmployeeLayoutRouteImport.update({
+  id: '/employee/_layout',
+  path: '/employee',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AppReportsRoute = AppReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => AppRoute,
+const AdminLayoutRoute = AdminLayoutRouteImport.update({
+  id: '/admin/_layout',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AppProfileRoute = AppProfileRouteImport.update({
+const EmployeeLayoutProfileRoute = EmployeeLayoutProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => EmployeeLayoutRoute,
 } as any)
-const AppPayrollRoute = AppPayrollRouteImport.update({
-  id: '/payroll',
-  path: '/payroll',
-  getParentRoute: () => AppRoute,
+const EmployeeLayoutPayslipsRoute = EmployeeLayoutPayslipsRouteImport.update({
+  id: '/payslips',
+  path: '/payslips',
+  getParentRoute: () => EmployeeLayoutRoute,
 } as any)
-const AppLeaveRoute = AppLeaveRouteImport.update({
-  id: '/leave',
-  path: '/leave',
-  getParentRoute: () => AppRoute,
+const EmployeeLayoutLeaveHistoryRoute =
+  EmployeeLayoutLeaveHistoryRouteImport.update({
+    id: '/leave-history',
+    path: '/leave-history',
+    getParentRoute: () => EmployeeLayoutRoute,
+  } as any)
+const EmployeeLayoutDashboardRoute = EmployeeLayoutDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => EmployeeLayoutRoute,
 } as any)
-const AppEmployeesRoute = AppEmployeesRouteImport.update({
-  id: '/employees',
-  path: '/employees',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppCalendarRoute = AppCalendarRouteImport.update({
+const EmployeeLayoutCalendarRoute = EmployeeLayoutCalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => EmployeeLayoutRoute,
 } as any)
-const AppAttendanceRoute = AppAttendanceRouteImport.update({
+const EmployeeLayoutApplyLeaveRoute =
+  EmployeeLayoutApplyLeaveRouteImport.update({
+    id: '/apply-leave',
+    path: '/apply-leave',
+    getParentRoute: () => EmployeeLayoutRoute,
+  } as any)
+const AdminLayoutSettingsRoute = AdminLayoutSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminLayoutRoute,
+} as any)
+const AdminLayoutReportsRoute = AdminLayoutReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AdminLayoutRoute,
+} as any)
+const AdminLayoutProfileRoute = AdminLayoutProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AdminLayoutRoute,
+} as any)
+const AdminLayoutPayrollRoute = AdminLayoutPayrollRouteImport.update({
+  id: '/payroll',
+  path: '/payroll',
+  getParentRoute: () => AdminLayoutRoute,
+} as any)
+const AdminLayoutOverviewRoute = AdminLayoutOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => AdminLayoutRoute,
+} as any)
+const AdminLayoutNotificationsRoute =
+  AdminLayoutNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AdminLayoutRoute,
+  } as any)
+const AdminLayoutLeavesRoute = AdminLayoutLeavesRouteImport.update({
+  id: '/leaves',
+  path: '/leaves',
+  getParentRoute: () => AdminLayoutRoute,
+} as any)
+const AdminLayoutHolidaysRoute = AdminLayoutHolidaysRouteImport.update({
+  id: '/holidays',
+  path: '/holidays',
+  getParentRoute: () => AdminLayoutRoute,
+} as any)
+const AdminLayoutDashboardRoute = AdminLayoutDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AdminLayoutRoute,
+} as any)
+const AdminLayoutCalendarRoute = AdminLayoutCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => AdminLayoutRoute,
+} as any)
+const AdminLayoutAttendanceRoute = AdminLayoutAttendanceRouteImport.update({
   id: '/attendance',
   path: '/attendance',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => AdminLayoutRoute,
 } as any)
-const AppApprovalsRoute = AppApprovalsRouteImport.update({
-  id: '/approvals',
-  path: '/approvals',
-  getParentRoute: () => AppRoute,
+const AdminLayoutEmployeesIndexRoute =
+  AdminLayoutEmployeesIndexRouteImport.update({
+    id: '/employees/',
+    path: '/employees/',
+    getParentRoute: () => AdminLayoutRoute,
+  } as any)
+const AdminLayoutEmployeesAddRoute = AdminLayoutEmployeesAddRouteImport.update({
+  id: '/employees/add',
+  path: '/employees/add',
+  getParentRoute: () => AdminLayoutRoute,
 } as any)
-const AppAdminRoute = AppAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => AppRoute,
-} as any)
+const AdminLayoutEmployeesEmployeeIdRoute =
+  AdminLayoutEmployeesEmployeeIdRouteImport.update({
+    id: '/employees/$employeeId',
+    path: '/employees/$employeeId',
+    getParentRoute: () => AdminLayoutRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AppIndexRoute
-  '/login': typeof LoginRoute
-  '/admin': typeof AppAdminRoute
-  '/approvals': typeof AppApprovalsRoute
-  '/attendance': typeof AppAttendanceRoute
-  '/calendar': typeof AppCalendarRoute
-  '/employees': typeof AppEmployeesRoute
-  '/leave': typeof AppLeaveRoute
-  '/payroll': typeof AppPayrollRoute
-  '/profile': typeof AppProfileRoute
-  '/reports': typeof AppReportsRoute
-  '/settings': typeof AppSettingsRoute
+  '/': typeof IndexRoute
+  '/admin': typeof AdminLayoutRouteWithChildren
+  '/employee': typeof EmployeeLayoutRouteWithChildren
+  '/admin/attendance': typeof AdminLayoutAttendanceRoute
+  '/admin/calendar': typeof AdminLayoutCalendarRoute
+  '/admin/dashboard': typeof AdminLayoutDashboardRoute
+  '/admin/holidays': typeof AdminLayoutHolidaysRoute
+  '/admin/leaves': typeof AdminLayoutLeavesRoute
+  '/admin/notifications': typeof AdminLayoutNotificationsRoute
+  '/admin/overview': typeof AdminLayoutOverviewRoute
+  '/admin/payroll': typeof AdminLayoutPayrollRoute
+  '/admin/profile': typeof AdminLayoutProfileRoute
+  '/admin/reports': typeof AdminLayoutReportsRoute
+  '/admin/settings': typeof AdminLayoutSettingsRoute
+  '/employee/apply-leave': typeof EmployeeLayoutApplyLeaveRoute
+  '/employee/calendar': typeof EmployeeLayoutCalendarRoute
+  '/employee/dashboard': typeof EmployeeLayoutDashboardRoute
+  '/employee/leave-history': typeof EmployeeLayoutLeaveHistoryRoute
+  '/employee/payslips': typeof EmployeeLayoutPayslipsRoute
+  '/employee/profile': typeof EmployeeLayoutProfileRoute
+  '/admin/employees/$employeeId': typeof AdminLayoutEmployeesEmployeeIdRoute
+  '/admin/employees/add': typeof AdminLayoutEmployeesAddRoute
+  '/admin/employees/': typeof AdminLayoutEmployeesIndexRoute
 }
 export interface FileRoutesByTo {
-  '/login': typeof LoginRoute
-  '/admin': typeof AppAdminRoute
-  '/approvals': typeof AppApprovalsRoute
-  '/attendance': typeof AppAttendanceRoute
-  '/calendar': typeof AppCalendarRoute
-  '/employees': typeof AppEmployeesRoute
-  '/leave': typeof AppLeaveRoute
-  '/payroll': typeof AppPayrollRoute
-  '/profile': typeof AppProfileRoute
-  '/reports': typeof AppReportsRoute
-  '/settings': typeof AppSettingsRoute
-  '/': typeof AppIndexRoute
+  '/': typeof IndexRoute
+  '/admin': typeof AdminLayoutRouteWithChildren
+  '/employee': typeof EmployeeLayoutRouteWithChildren
+  '/admin/attendance': typeof AdminLayoutAttendanceRoute
+  '/admin/calendar': typeof AdminLayoutCalendarRoute
+  '/admin/dashboard': typeof AdminLayoutDashboardRoute
+  '/admin/holidays': typeof AdminLayoutHolidaysRoute
+  '/admin/leaves': typeof AdminLayoutLeavesRoute
+  '/admin/notifications': typeof AdminLayoutNotificationsRoute
+  '/admin/overview': typeof AdminLayoutOverviewRoute
+  '/admin/payroll': typeof AdminLayoutPayrollRoute
+  '/admin/profile': typeof AdminLayoutProfileRoute
+  '/admin/reports': typeof AdminLayoutReportsRoute
+  '/admin/settings': typeof AdminLayoutSettingsRoute
+  '/employee/apply-leave': typeof EmployeeLayoutApplyLeaveRoute
+  '/employee/calendar': typeof EmployeeLayoutCalendarRoute
+  '/employee/dashboard': typeof EmployeeLayoutDashboardRoute
+  '/employee/leave-history': typeof EmployeeLayoutLeaveHistoryRoute
+  '/employee/payslips': typeof EmployeeLayoutPayslipsRoute
+  '/employee/profile': typeof EmployeeLayoutProfileRoute
+  '/admin/employees/$employeeId': typeof AdminLayoutEmployeesEmployeeIdRoute
+  '/admin/employees/add': typeof AdminLayoutEmployeesAddRoute
+  '/admin/employees': typeof AdminLayoutEmployeesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/_app': typeof AppRouteWithChildren
-  '/login': typeof LoginRoute
-  '/_app/admin': typeof AppAdminRoute
-  '/_app/approvals': typeof AppApprovalsRoute
-  '/_app/attendance': typeof AppAttendanceRoute
-  '/_app/calendar': typeof AppCalendarRoute
-  '/_app/employees': typeof AppEmployeesRoute
-  '/_app/leave': typeof AppLeaveRoute
-  '/_app/payroll': typeof AppPayrollRoute
-  '/_app/profile': typeof AppProfileRoute
-  '/_app/reports': typeof AppReportsRoute
-  '/_app/settings': typeof AppSettingsRoute
-  '/_app/': typeof AppIndexRoute
+  '/': typeof IndexRoute
+  '/admin/_layout': typeof AdminLayoutRouteWithChildren
+  '/employee/_layout': typeof EmployeeLayoutRouteWithChildren
+  '/admin/_layout/attendance': typeof AdminLayoutAttendanceRoute
+  '/admin/_layout/calendar': typeof AdminLayoutCalendarRoute
+  '/admin/_layout/dashboard': typeof AdminLayoutDashboardRoute
+  '/admin/_layout/holidays': typeof AdminLayoutHolidaysRoute
+  '/admin/_layout/leaves': typeof AdminLayoutLeavesRoute
+  '/admin/_layout/notifications': typeof AdminLayoutNotificationsRoute
+  '/admin/_layout/overview': typeof AdminLayoutOverviewRoute
+  '/admin/_layout/payroll': typeof AdminLayoutPayrollRoute
+  '/admin/_layout/profile': typeof AdminLayoutProfileRoute
+  '/admin/_layout/reports': typeof AdminLayoutReportsRoute
+  '/admin/_layout/settings': typeof AdminLayoutSettingsRoute
+  '/employee/_layout/apply-leave': typeof EmployeeLayoutApplyLeaveRoute
+  '/employee/_layout/calendar': typeof EmployeeLayoutCalendarRoute
+  '/employee/_layout/dashboard': typeof EmployeeLayoutDashboardRoute
+  '/employee/_layout/leave-history': typeof EmployeeLayoutLeaveHistoryRoute
+  '/employee/_layout/payslips': typeof EmployeeLayoutPayslipsRoute
+  '/employee/_layout/profile': typeof EmployeeLayoutProfileRoute
+  '/admin/_layout/employees/$employeeId': typeof AdminLayoutEmployeesEmployeeIdRoute
+  '/admin/_layout/employees/add': typeof AdminLayoutEmployeesAddRoute
+  '/admin/_layout/employees/': typeof AdminLayoutEmployeesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/login'
     | '/admin'
-    | '/approvals'
-    | '/attendance'
-    | '/calendar'
-    | '/employees'
-    | '/leave'
-    | '/payroll'
-    | '/profile'
-    | '/reports'
-    | '/settings'
+    | '/employee'
+    | '/admin/attendance'
+    | '/admin/calendar'
+    | '/admin/dashboard'
+    | '/admin/holidays'
+    | '/admin/leaves'
+    | '/admin/notifications'
+    | '/admin/overview'
+    | '/admin/payroll'
+    | '/admin/profile'
+    | '/admin/reports'
+    | '/admin/settings'
+    | '/employee/apply-leave'
+    | '/employee/calendar'
+    | '/employee/dashboard'
+    | '/employee/leave-history'
+    | '/employee/payslips'
+    | '/employee/profile'
+    | '/admin/employees/$employeeId'
+    | '/admin/employees/add'
+    | '/admin/employees/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/login'
-    | '/admin'
-    | '/approvals'
-    | '/attendance'
-    | '/calendar'
-    | '/employees'
-    | '/leave'
-    | '/payroll'
-    | '/profile'
-    | '/reports'
-    | '/settings'
     | '/'
+    | '/admin'
+    | '/employee'
+    | '/admin/attendance'
+    | '/admin/calendar'
+    | '/admin/dashboard'
+    | '/admin/holidays'
+    | '/admin/leaves'
+    | '/admin/notifications'
+    | '/admin/overview'
+    | '/admin/payroll'
+    | '/admin/profile'
+    | '/admin/reports'
+    | '/admin/settings'
+    | '/employee/apply-leave'
+    | '/employee/calendar'
+    | '/employee/dashboard'
+    | '/employee/leave-history'
+    | '/employee/payslips'
+    | '/employee/profile'
+    | '/admin/employees/$employeeId'
+    | '/admin/employees/add'
+    | '/admin/employees'
   id:
     | '__root__'
-    | '/_app'
-    | '/login'
-    | '/_app/admin'
-    | '/_app/approvals'
-    | '/_app/attendance'
-    | '/_app/calendar'
-    | '/_app/employees'
-    | '/_app/leave'
-    | '/_app/payroll'
-    | '/_app/profile'
-    | '/_app/reports'
-    | '/_app/settings'
-    | '/_app/'
+    | '/'
+    | '/admin/_layout'
+    | '/employee/_layout'
+    | '/admin/_layout/attendance'
+    | '/admin/_layout/calendar'
+    | '/admin/_layout/dashboard'
+    | '/admin/_layout/holidays'
+    | '/admin/_layout/leaves'
+    | '/admin/_layout/notifications'
+    | '/admin/_layout/overview'
+    | '/admin/_layout/payroll'
+    | '/admin/_layout/profile'
+    | '/admin/_layout/reports'
+    | '/admin/_layout/settings'
+    | '/employee/_layout/apply-leave'
+    | '/employee/_layout/calendar'
+    | '/employee/_layout/dashboard'
+    | '/employee/_layout/leave-history'
+    | '/employee/_layout/payslips'
+    | '/employee/_layout/profile'
+    | '/admin/_layout/employees/$employeeId'
+    | '/admin/_layout/employees/add'
+    | '/admin/_layout/employees/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  AppRoute: typeof AppRouteWithChildren
-  LoginRoute: typeof LoginRoute
+  IndexRoute: typeof IndexRoute
+  AdminLayoutRoute: typeof AdminLayoutRouteWithChildren
+  EmployeeLayoutRoute: typeof EmployeeLayoutRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_app': {
-      id: '/_app'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_app/': {
-      id: '/_app/'
+    '/': {
+      id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof AppIndexRouteImport
-      parentRoute: typeof AppRoute
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_app/settings': {
-      id: '/_app/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AppSettingsRouteImport
-      parentRoute: typeof AppRoute
+    '/employee/_layout': {
+      id: '/employee/_layout'
+      path: '/employee'
+      fullPath: '/employee'
+      preLoaderRoute: typeof EmployeeLayoutRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_app/reports': {
-      id: '/_app/reports'
-      path: '/reports'
-      fullPath: '/reports'
-      preLoaderRoute: typeof AppReportsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/profile': {
-      id: '/_app/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof AppProfileRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/payroll': {
-      id: '/_app/payroll'
-      path: '/payroll'
-      fullPath: '/payroll'
-      preLoaderRoute: typeof AppPayrollRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/leave': {
-      id: '/_app/leave'
-      path: '/leave'
-      fullPath: '/leave'
-      preLoaderRoute: typeof AppLeaveRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/employees': {
-      id: '/_app/employees'
-      path: '/employees'
-      fullPath: '/employees'
-      preLoaderRoute: typeof AppEmployeesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/calendar': {
-      id: '/_app/calendar'
-      path: '/calendar'
-      fullPath: '/calendar'
-      preLoaderRoute: typeof AppCalendarRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/attendance': {
-      id: '/_app/attendance'
-      path: '/attendance'
-      fullPath: '/attendance'
-      preLoaderRoute: typeof AppAttendanceRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/approvals': {
-      id: '/_app/approvals'
-      path: '/approvals'
-      fullPath: '/approvals'
-      preLoaderRoute: typeof AppApprovalsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/admin': {
-      id: '/_app/admin'
+    '/admin/_layout': {
+      id: '/admin/_layout'
       path: '/admin'
       fullPath: '/admin'
-      preLoaderRoute: typeof AppAdminRouteImport
-      parentRoute: typeof AppRoute
+      preLoaderRoute: typeof AdminLayoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/employee/_layout/profile': {
+      id: '/employee/_layout/profile'
+      path: '/profile'
+      fullPath: '/employee/profile'
+      preLoaderRoute: typeof EmployeeLayoutProfileRouteImport
+      parentRoute: typeof EmployeeLayoutRoute
+    }
+    '/employee/_layout/payslips': {
+      id: '/employee/_layout/payslips'
+      path: '/payslips'
+      fullPath: '/employee/payslips'
+      preLoaderRoute: typeof EmployeeLayoutPayslipsRouteImport
+      parentRoute: typeof EmployeeLayoutRoute
+    }
+    '/employee/_layout/leave-history': {
+      id: '/employee/_layout/leave-history'
+      path: '/leave-history'
+      fullPath: '/employee/leave-history'
+      preLoaderRoute: typeof EmployeeLayoutLeaveHistoryRouteImport
+      parentRoute: typeof EmployeeLayoutRoute
+    }
+    '/employee/_layout/dashboard': {
+      id: '/employee/_layout/dashboard'
+      path: '/dashboard'
+      fullPath: '/employee/dashboard'
+      preLoaderRoute: typeof EmployeeLayoutDashboardRouteImport
+      parentRoute: typeof EmployeeLayoutRoute
+    }
+    '/employee/_layout/calendar': {
+      id: '/employee/_layout/calendar'
+      path: '/calendar'
+      fullPath: '/employee/calendar'
+      preLoaderRoute: typeof EmployeeLayoutCalendarRouteImport
+      parentRoute: typeof EmployeeLayoutRoute
+    }
+    '/employee/_layout/apply-leave': {
+      id: '/employee/_layout/apply-leave'
+      path: '/apply-leave'
+      fullPath: '/employee/apply-leave'
+      preLoaderRoute: typeof EmployeeLayoutApplyLeaveRouteImport
+      parentRoute: typeof EmployeeLayoutRoute
+    }
+    '/admin/_layout/settings': {
+      id: '/admin/_layout/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminLayoutSettingsRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/reports': {
+      id: '/admin/_layout/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminLayoutReportsRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/profile': {
+      id: '/admin/_layout/profile'
+      path: '/profile'
+      fullPath: '/admin/profile'
+      preLoaderRoute: typeof AdminLayoutProfileRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/payroll': {
+      id: '/admin/_layout/payroll'
+      path: '/payroll'
+      fullPath: '/admin/payroll'
+      preLoaderRoute: typeof AdminLayoutPayrollRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/overview': {
+      id: '/admin/_layout/overview'
+      path: '/overview'
+      fullPath: '/admin/overview'
+      preLoaderRoute: typeof AdminLayoutOverviewRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/notifications': {
+      id: '/admin/_layout/notifications'
+      path: '/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AdminLayoutNotificationsRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/leaves': {
+      id: '/admin/_layout/leaves'
+      path: '/leaves'
+      fullPath: '/admin/leaves'
+      preLoaderRoute: typeof AdminLayoutLeavesRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/holidays': {
+      id: '/admin/_layout/holidays'
+      path: '/holidays'
+      fullPath: '/admin/holidays'
+      preLoaderRoute: typeof AdminLayoutHolidaysRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/dashboard': {
+      id: '/admin/_layout/dashboard'
+      path: '/dashboard'
+      fullPath: '/admin/dashboard'
+      preLoaderRoute: typeof AdminLayoutDashboardRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/calendar': {
+      id: '/admin/_layout/calendar'
+      path: '/calendar'
+      fullPath: '/admin/calendar'
+      preLoaderRoute: typeof AdminLayoutCalendarRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/attendance': {
+      id: '/admin/_layout/attendance'
+      path: '/attendance'
+      fullPath: '/admin/attendance'
+      preLoaderRoute: typeof AdminLayoutAttendanceRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/employees/': {
+      id: '/admin/_layout/employees/'
+      path: '/employees'
+      fullPath: '/admin/employees/'
+      preLoaderRoute: typeof AdminLayoutEmployeesIndexRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/employees/add': {
+      id: '/admin/_layout/employees/add'
+      path: '/employees/add'
+      fullPath: '/admin/employees/add'
+      preLoaderRoute: typeof AdminLayoutEmployeesAddRouteImport
+      parentRoute: typeof AdminLayoutRoute
+    }
+    '/admin/_layout/employees/$employeeId': {
+      id: '/admin/_layout/employees/$employeeId'
+      path: '/employees/$employeeId'
+      fullPath: '/admin/employees/$employeeId'
+      preLoaderRoute: typeof AdminLayoutEmployeesEmployeeIdRouteImport
+      parentRoute: typeof AdminLayoutRoute
     }
   }
 }
 
-interface AppRouteChildren {
-  AppAdminRoute: typeof AppAdminRoute
-  AppApprovalsRoute: typeof AppApprovalsRoute
-  AppAttendanceRoute: typeof AppAttendanceRoute
-  AppCalendarRoute: typeof AppCalendarRoute
-  AppEmployeesRoute: typeof AppEmployeesRoute
-  AppLeaveRoute: typeof AppLeaveRoute
-  AppPayrollRoute: typeof AppPayrollRoute
-  AppProfileRoute: typeof AppProfileRoute
-  AppReportsRoute: typeof AppReportsRoute
-  AppSettingsRoute: typeof AppSettingsRoute
-  AppIndexRoute: typeof AppIndexRoute
+interface AdminLayoutRouteChildren {
+  AdminLayoutAttendanceRoute: typeof AdminLayoutAttendanceRoute
+  AdminLayoutCalendarRoute: typeof AdminLayoutCalendarRoute
+  AdminLayoutDashboardRoute: typeof AdminLayoutDashboardRoute
+  AdminLayoutHolidaysRoute: typeof AdminLayoutHolidaysRoute
+  AdminLayoutLeavesRoute: typeof AdminLayoutLeavesRoute
+  AdminLayoutNotificationsRoute: typeof AdminLayoutNotificationsRoute
+  AdminLayoutOverviewRoute: typeof AdminLayoutOverviewRoute
+  AdminLayoutPayrollRoute: typeof AdminLayoutPayrollRoute
+  AdminLayoutProfileRoute: typeof AdminLayoutProfileRoute
+  AdminLayoutReportsRoute: typeof AdminLayoutReportsRoute
+  AdminLayoutSettingsRoute: typeof AdminLayoutSettingsRoute
+  AdminLayoutEmployeesEmployeeIdRoute: typeof AdminLayoutEmployeesEmployeeIdRoute
+  AdminLayoutEmployeesAddRoute: typeof AdminLayoutEmployeesAddRoute
+  AdminLayoutEmployeesIndexRoute: typeof AdminLayoutEmployeesIndexRoute
 }
 
-const AppRouteChildren: AppRouteChildren = {
-  AppAdminRoute: AppAdminRoute,
-  AppApprovalsRoute: AppApprovalsRoute,
-  AppAttendanceRoute: AppAttendanceRoute,
-  AppCalendarRoute: AppCalendarRoute,
-  AppEmployeesRoute: AppEmployeesRoute,
-  AppLeaveRoute: AppLeaveRoute,
-  AppPayrollRoute: AppPayrollRoute,
-  AppProfileRoute: AppProfileRoute,
-  AppReportsRoute: AppReportsRoute,
-  AppSettingsRoute: AppSettingsRoute,
-  AppIndexRoute: AppIndexRoute,
+const AdminLayoutRouteChildren: AdminLayoutRouteChildren = {
+  AdminLayoutAttendanceRoute: AdminLayoutAttendanceRoute,
+  AdminLayoutCalendarRoute: AdminLayoutCalendarRoute,
+  AdminLayoutDashboardRoute: AdminLayoutDashboardRoute,
+  AdminLayoutHolidaysRoute: AdminLayoutHolidaysRoute,
+  AdminLayoutLeavesRoute: AdminLayoutLeavesRoute,
+  AdminLayoutNotificationsRoute: AdminLayoutNotificationsRoute,
+  AdminLayoutOverviewRoute: AdminLayoutOverviewRoute,
+  AdminLayoutPayrollRoute: AdminLayoutPayrollRoute,
+  AdminLayoutProfileRoute: AdminLayoutProfileRoute,
+  AdminLayoutReportsRoute: AdminLayoutReportsRoute,
+  AdminLayoutSettingsRoute: AdminLayoutSettingsRoute,
+  AdminLayoutEmployeesEmployeeIdRoute: AdminLayoutEmployeesEmployeeIdRoute,
+  AdminLayoutEmployeesAddRoute: AdminLayoutEmployeesAddRoute,
+  AdminLayoutEmployeesIndexRoute: AdminLayoutEmployeesIndexRoute,
 }
 
-const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+const AdminLayoutRouteWithChildren = AdminLayoutRoute._addFileChildren(
+  AdminLayoutRouteChildren,
+)
+
+interface EmployeeLayoutRouteChildren {
+  EmployeeLayoutApplyLeaveRoute: typeof EmployeeLayoutApplyLeaveRoute
+  EmployeeLayoutCalendarRoute: typeof EmployeeLayoutCalendarRoute
+  EmployeeLayoutDashboardRoute: typeof EmployeeLayoutDashboardRoute
+  EmployeeLayoutLeaveHistoryRoute: typeof EmployeeLayoutLeaveHistoryRoute
+  EmployeeLayoutPayslipsRoute: typeof EmployeeLayoutPayslipsRoute
+  EmployeeLayoutProfileRoute: typeof EmployeeLayoutProfileRoute
+}
+
+const EmployeeLayoutRouteChildren: EmployeeLayoutRouteChildren = {
+  EmployeeLayoutApplyLeaveRoute: EmployeeLayoutApplyLeaveRoute,
+  EmployeeLayoutCalendarRoute: EmployeeLayoutCalendarRoute,
+  EmployeeLayoutDashboardRoute: EmployeeLayoutDashboardRoute,
+  EmployeeLayoutLeaveHistoryRoute: EmployeeLayoutLeaveHistoryRoute,
+  EmployeeLayoutPayslipsRoute: EmployeeLayoutPayslipsRoute,
+  EmployeeLayoutProfileRoute: EmployeeLayoutProfileRoute,
+}
+
+const EmployeeLayoutRouteWithChildren = EmployeeLayoutRoute._addFileChildren(
+  EmployeeLayoutRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
-  AppRoute: AppRouteWithChildren,
-  LoginRoute: LoginRoute,
+  IndexRoute: IndexRoute,
+  AdminLayoutRoute: AdminLayoutRouteWithChildren,
+  EmployeeLayoutRoute: EmployeeLayoutRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

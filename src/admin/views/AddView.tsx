@@ -11,7 +11,7 @@ import {
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 
-export function AddEmployee() {
+export function AddEmployeeView() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     toast.success("Employee Profile Created", {

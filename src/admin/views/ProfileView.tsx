@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 
 
-export function ProfilePage() {
+export function AdminProfileView() {
   const [isEditing, setIsEditing] = useState(false);
   
   const [profile, setProfile] = useState({

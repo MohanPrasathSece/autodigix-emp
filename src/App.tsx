@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 // Layouts
-import { AdminLayout } from "@/layouts/AdminLayout";
-import { EmployeeLayout } from "@/layouts/EmployeeLayout";
+import { AdminLayout } from "@/shared/layouts/AdminLayout";
+import { EmployeeLayout } from "@/shared/layouts/EmployeeLayout";
 
 // Public Views
 import { LandingView } from "@/public/views/LandingView";

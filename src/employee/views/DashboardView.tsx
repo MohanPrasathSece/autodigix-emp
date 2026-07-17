@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Clock, CalendarCheck, PlaneTakeoff, TrendingUp, Coffee, FileText, ChevronRight } from "lucide-react";
 import { useAttendance } from "@/lib/attendanceEngine";
 import { PageHeader } from "@/components/page-header";

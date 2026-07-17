@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   CalendarCheck,
@@ -41,7 +41,7 @@ const account = [
 ];
 
 export function EmployeeSidebar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { pathname } = useLocation();
   const isActive = (u: string) => pathname.startsWith(u);
 
   const renderItems = (items: typeof primary) =>

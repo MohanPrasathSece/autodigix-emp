@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "react-router-dom";
 import { ArrowRight, Sparkles, Building2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,7 +101,7 @@ export function LandingView() {
                   <div className="pt-2 flex flex-col gap-3">
                     <Button 
                       type="button" 
-                      onClick={() => navigate({ to: '/admin/dashboard' })}
+                      onClick={() => navigate('/admin/dashboard')}
                       className="h-11 w-full rounded-xl group relative overflow-hidden"
                     >
                       <span className="relative z-10 flex items-center justify-center">
@@ -120,7 +120,7 @@ export function LandingView() {
                     <Button 
                       type="button" 
                       variant="outline"
-                      onClick={() => navigate({ to: '/employee/dashboard' })}
+                      onClick={() => navigate('/employee/dashboard')}
                       className="h-11 w-full rounded-xl border-border/50 hover:bg-muted/50"
                     >
                       Sign in as Employee

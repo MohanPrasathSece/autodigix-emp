@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+
 import { useState } from "react";
 import { Search, Plus, MoreHorizontal, Mail, Eye, EyeOff } from "lucide-react";
-import { useRouter } from "@tanstack/react-router";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function EmployeesPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -146,7 +146,7 @@ export function EmployeesPage() {
             {rows.map((e) => (
               <div 
                 key={e.id}
-                onClick={() => router.navigate({ to: `/admin/employees/${e.id}` })}
+                onClick={() => navigate(`/admin/employees/${e.id}`)}
                 className="group relative rounded-3xl border bg-card p-5 shadow-soft transition-all hover:-translate-y-1 hover:shadow-md cursor-pointer flex flex-col"
               >
                 {/* Actions Dropdown / Menu */}

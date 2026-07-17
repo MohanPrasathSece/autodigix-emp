@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Wallet, Download, TrendingUp, Banknote } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";

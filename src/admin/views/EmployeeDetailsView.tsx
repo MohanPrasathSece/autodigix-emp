@@ -1,4 +1,4 @@
-import { useParams, useRouter } from "@tanstack/react-router";
+import { useParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/page-header";
 import { employees } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
@@ -30,8 +30,8 @@ const leaveStats = {
 };
 
 export function EmployeeDetailsView() {
-  const router = useRouter();
-  const { employeeId } = useParams({ from: '/admin/_layout/employees/$employeeId' });
+  const navigate = useNavigate();
+  const { employeeId } = useParams<{ employeeId: string }>();
   const emp = employees.find((e) => e.id === employeeId);
   const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false);
 
@@ -229,7 +229,7 @@ export function EmployeeDetailsView() {
             <Button variant="outline" onClick={() => setIsRemoveConfirmOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={() => {
               setIsRemoveConfirmOpen(false);
-              router.navigate({ to: '/admin/employees' });
+              navigate('/admin/employees');
             }}>Confirm Remove</Button>
           </DialogFooter>
         </DialogContent>

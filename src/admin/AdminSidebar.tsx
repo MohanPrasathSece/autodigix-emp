@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -45,7 +45,7 @@ const account = [
 ];
 
 export function AdminSidebar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { pathname } = useLocation();
   const isActive = (u: string) => pathname.startsWith(u);
 
   const renderItems = (items: typeof primary) =>

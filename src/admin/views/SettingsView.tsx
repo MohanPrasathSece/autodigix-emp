@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { User, Bell, Shield, Palette, Globe } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";

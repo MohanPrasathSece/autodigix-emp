@@ -12,6 +12,7 @@ import { LandingView } from "@/public/views/LandingView";
 
 // Components
 import { CommandPalette } from "@/components/CommandPalette";
+import { RealtimeSync } from "@/shared/components/RealtimeSync";
 
 // Admin Views
 import { AdminDashboardView } from "@/admin/views/DashboardView";
@@ -40,6 +41,7 @@ import { CalendarPage as EmployeeCalendarPage } from "@/employee/views/CalendarV
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <RealtimeSync />
       <BrowserRouter>
         <CommandPalette />
         <Routes>

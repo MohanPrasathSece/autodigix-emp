@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Mail, Phone, MapPin, Building2, Edit, Save, Camera, X, Loader2, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuthStore } from "@/shared/store/auth";
+import { useEmployees, useNotifications } from "@/shared/api/queries";
+import { useUpdateEmployee } from "@/shared/api/mutations";
 
 const ADMIN_AVATAR_KEY = "autodigix_admin_avatar";
 
@@ -17,20 +19,35 @@ export function AdminProfileView() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [avatarUrl, setAvatarUrl] = useState<string>(() => localStorage.getItem(ADMIN_AVATAR_KEY) || "");
+  const { data: employees = [], isLoading } = useEmployees();
+  const { data: notifications = [] } = useNotifications();
+  const updateEmployee = useUpdateEmployee();
 
-  const [profile, setProfile] = useState({
-    name: user?.name || "System Administrator",
-    role: "Super Admin",
-    email: user?.email || "admin@harmonyhr.com",
-    phone: "+1 (555) 019-8234",
-    location: "New York, NY",
+  const employeeData = employees.find((e: any) => e.id === user?.id) || employees[0];
+
+  const [tempProfile, setTempProfile] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
     office: "Headquarters",
-    joined: "Jan 1, 2024",
-    initials: (user?.name || "SA").substring(0, 2).toUpperCase()
+    initials: "",
+    avatarUrl: ""
   });
 
-  const [tempProfile, setTempProfile] = useState({ ...profile });
+  useEffect(() => {
+    if (employeeData) {
+      setTempProfile(prev => ({
+        ...prev,
+        name: employeeData.name,
+        email: employeeData.email,
+        phone: employeeData.phone || "+1 (555) 019-8234",
+        location: employeeData.location || "New York, NY",
+        initials: employeeData.initials || employeeData.name.substring(0, 2).toUpperCase(),
+        avatarUrl: employeeData.avatar_url || employeeData.avatarUrl || localStorage.getItem(ADMIN_AVATAR_KEY) || ""
+      }));
+    }
+  }, [employeeData]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,9 +66,9 @@ export function AdminProfileView() {
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
       const url = `${data.publicUrl}?t=${Date.now()}`;
-      setAvatarUrl(url);
+      setTempProfile(prev => ({ ...prev, avatarUrl: url }));
       localStorage.setItem(ADMIN_AVATAR_KEY, url);
-      toast.success("Profile photo updated!");
+      toast.success("Profile photo updated! Click save to apply changes.");
     } catch (error: any) {
       toast.error(`Upload failed: ${error.message}`);
     } finally {
@@ -60,21 +77,51 @@ export function AdminProfileView() {
   };
 
   const handleRemovePhoto = () => {
-    setAvatarUrl("");
+    setTempProfile(prev => ({ ...prev, avatarUrl: "" }));
     localStorage.removeItem(ADMIN_AVATAR_KEY);
-    toast.info("Photo removed.");
+    toast.info("Photo removed. Click save to apply changes.");
   };
 
   const handleSave = () => {
-    setProfile({ ...tempProfile });
-    setIsEditing(false);
-    toast.success("Admin profile updated successfully.");
+    updateEmployee.mutate({
+      id: user?.id || employeeData?.id,
+      name: tempProfile.name,
+      email: tempProfile.email,
+      phone: tempProfile.phone,
+      location: tempProfile.location,
+      initials: tempProfile.initials,
+      avatar_url: tempProfile.avatarUrl
+    }, {
+      onSuccess: () => {
+        setIsEditing(false);
+        toast.success("Admin profile updated successfully.");
+      }
+    });
   };
 
   const handleCancel = () => {
-    setTempProfile({ ...profile });
+    if (employeeData) {
+      setTempProfile(prev => ({
+        ...prev,
+        name: employeeData.name,
+        email: employeeData.email,
+        phone: employeeData.phone || "+1 (555) 019-8234",
+        location: employeeData.location || "New York, NY",
+        initials: employeeData.initials || employeeData.name.substring(0, 2).toUpperCase(),
+        avatarUrl: employeeData.avatar_url || employeeData.avatarUrl || localStorage.getItem(ADMIN_AVATAR_KEY) || ""
+      }));
+    }
     setIsEditing(false);
   };
+
+  if (isLoading || !employeeData) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-20 bg-muted rounded-xl" />
+        <div className="h-64 bg-card border rounded-2xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
@@ -91,8 +138,8 @@ export function AdminProfileView() {
               <Button variant="outline" className="rounded-xl" onClick={handleCancel}>
                 <X className="mr-1.5 size-4" /> Cancel
               </Button>
-              <Button className="rounded-xl" onClick={handleSave}>
-                <Save className="mr-1.5 size-4" /> Save Changes
+              <Button className="rounded-xl" onClick={handleSave} disabled={updateEmployee.isPending}>
+                <Save className="mr-1.5 size-4" /> {updateEmployee.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           )
@@ -106,15 +153,15 @@ export function AdminProfileView() {
 
             {/* Avatar with hover upload overlay */}
             <div className="relative group -mt-10">
-              {avatarUrl ? (
+              {tempProfile.avatarUrl ? (
                 <img
-                  src={avatarUrl}
+                  src={tempProfile.avatarUrl}
                   alt="Admin avatar"
-                  className="size-24 rounded-2xl object-cover ring-4 ring-card shadow-elevated"
+                  className="size-24 rounded-2xl object-cover ring-4 ring-card shadow-elevated bg-white"
                 />
               ) : (
                 <div className="grid size-24 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-3xl font-bold text-white ring-4 ring-card shadow-elevated">
-                  {profile.initials}
+                  {tempProfile.initials || tempProfile.name.substring(0, 2).toUpperCase()}
                 </div>
               )}
 
@@ -131,7 +178,7 @@ export function AdminProfileView() {
                     >
                       <Camera className="size-5" />
                     </button>
-                    {avatarUrl && (
+                    {tempProfile.avatarUrl && (
                       <button
                         onClick={handleRemovePhoto}
                         className="hover:text-red-400 transition-colors"
@@ -172,10 +219,10 @@ export function AdminProfileView() {
                   />
                 </div>
               ) : (
-                <h2 className="text-2xl font-bold">{profile.name}</h2>
+                <h2 className="text-2xl font-bold">{tempProfile.name}</h2>
               )}
 
-              <p className="text-sm font-medium text-muted-foreground mt-1">{profile.role} · IT Department</p>
+              <p className="text-sm font-medium text-muted-foreground mt-1">{employeeData.role || "Super Admin"} · {employeeData.department || "Management"}</p>
 
               <div className="mt-3 flex flex-wrap gap-2">
                 <Badge variant="outline" className="rounded-full border-blue-500/30 bg-blue-500/10 text-[11px] font-bold tracking-wider uppercase text-blue-600 dark:text-blue-400">
@@ -212,7 +259,7 @@ export function AdminProfileView() {
                     {isEditing ? (
                       <Input value={tempProfile.email} onChange={e => setTempProfile({ ...tempProfile, email: e.target.value })} className="h-7 text-sm px-2" />
                     ) : (
-                      <div className="truncate text-sm font-bold">{profile.email}</div>
+                      <div className="truncate text-sm font-bold">{tempProfile.email}</div>
                     )}
                   </div>
                 </div>
@@ -227,7 +274,7 @@ export function AdminProfileView() {
                     {isEditing ? (
                       <Input value={tempProfile.phone} onChange={e => setTempProfile({ ...tempProfile, phone: e.target.value })} className="h-7 text-sm px-2" />
                     ) : (
-                      <div className="truncate text-sm font-bold">{profile.phone}</div>
+                      <div className="truncate text-sm font-bold">{tempProfile.phone}</div>
                     )}
                   </div>
                 </div>
@@ -242,7 +289,7 @@ export function AdminProfileView() {
                     {isEditing ? (
                       <Input value={tempProfile.location} onChange={e => setTempProfile({ ...tempProfile, location: e.target.value })} className="h-7 text-sm px-2" />
                     ) : (
-                      <div className="truncate text-sm font-bold">{profile.location}</div>
+                      <div className="truncate text-sm font-bold">{tempProfile.location}</div>
                     )}
                   </div>
                 </div>
@@ -257,7 +304,7 @@ export function AdminProfileView() {
                     {isEditing ? (
                       <Input value={tempProfile.office} onChange={e => setTempProfile({ ...tempProfile, office: e.target.value })} className="h-7 text-sm px-2" />
                     ) : (
-                      <div className="truncate text-sm font-bold">{profile.office}</div>
+                      <div className="truncate text-sm font-bold">{tempProfile.office}</div>
                     )}
                   </div>
                 </div>
@@ -278,7 +325,7 @@ export function AdminProfileView() {
                 </div>
                 <div className="flex justify-between items-center border-b pb-2">
                   <span className="text-muted-foreground font-medium">Joined Date</span>
-                  <span className="font-bold">{profile.joined}</span>
+                  <span className="font-bold">{new Date(employeeData.created_at || new Date()).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground font-medium">Last Login</span>
@@ -293,18 +340,20 @@ export function AdminProfileView() {
           <div className="rounded-2xl border bg-card p-6 shadow-soft">
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-6">Admin Activity Log</h3>
             <ol className="relative space-y-6 border-l pl-6 ml-2">
-              {[
-                { t: "Updated Employee Profile", d: "Today, 10:45 AM", body: "Changed access level for Aarav Sharma to Admin." },
-                { t: "System Backup Completed", d: "Yesterday, 11:00 PM", body: "Automated database backup was successful." },
-                { t: "Approved Leave Request", d: "Jul 15, 09:30 AM", body: "Approved 3-day sick leave for Priya Patel." },
-                { t: "Generated Payroll Report", d: "Jul 1, 10:00 AM", body: "Exported June 2026 payroll summary." },
-              ].map((e, i) => (
-                <li key={i} className="relative">
-                  <span className="absolute -left-[31px] top-1 grid size-3 place-items-center rounded-full border-2 border-background bg-blue-500 shadow-sm" />
-                  <div className="text-sm font-bold">{e.t} <span className="text-xs font-semibold text-muted-foreground ml-2">{e.d}</span></div>
-                  <p className="text-xs font-medium text-muted-foreground mt-1">{e.body}</p>
+              {notifications.slice(0, 10).map((log: any) => (
+                <li key={log.id} className="relative">
+                  <span className={`absolute -left-[31px] top-1 grid size-3 place-items-center rounded-full border-2 border-background shadow-sm ${
+                    log.tone === 'success' ? 'bg-emerald-500' : 
+                    log.tone === 'error' ? 'bg-red-500' : 
+                    log.tone === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
+                  }`} />
+                  <div className="text-sm font-bold">{log.title} <span className="text-xs font-semibold text-muted-foreground ml-2">{log.time}</span></div>
+                  <p className="text-xs font-medium text-muted-foreground mt-1">{log.body}</p>
                 </li>
               ))}
+              {notifications.length === 0 && (
+                <div className="text-sm text-muted-foreground pt-4">No recent activity.</div>
+              )}
             </ol>
           </div>
         </TabsContent>

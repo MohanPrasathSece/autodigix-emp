@@ -172,7 +172,7 @@ export function AdminDashboard() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{r.name}</div>
-                    <div className="text-xs text-muted-foreground">{r.type} · {r.from_date} – {r.to_date} · {r.days}d</div>
+                    <div className="text-xs text-muted-foreground">{r.type} · {r.from} – {r.to} · {r.days}d</div>
                   </div>
                 </div>
               ))

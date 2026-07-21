@@ -10,6 +10,7 @@ import { useLeaveRequests, useEmployees } from "@/shared/api/queries";
 import { useUpdateLeaveRequestStatus } from "@/shared/api/mutations";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import confetti from "canvas-confetti";
 
 type LeaveRequest = any; // Fallback since we are fetching dynamically
 
@@ -35,6 +36,13 @@ export function ApprovalsPage() {
       {
         onSuccess: () => {
           toast.success(`${confirmAction === "Approve" ? "Approved" : "Declined"} ${selectedRequest.name}'s request`);
+          if (confirmAction === "Approve") {
+            confetti({
+              particleCount: 100,
+              spread: 70,
+              origin: { y: 0.6 }
+            });
+          }
           setConfirmAction(null);
           setSelectedRequest(null);
         }

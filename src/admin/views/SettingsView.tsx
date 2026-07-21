@@ -5,6 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { useAuthStore } from "@/shared/store/auth";
+import { useEmployees } from "@/shared/api/queries";
+import { useUpdateEmployee } from "@/shared/api/mutations";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 
 
@@ -17,6 +22,41 @@ const sections = [
 ];
 
 export function SettingsPage() {
+  const { user } = useAuthStore();
+  const { data: employees = [] } = useEmployees();
+  const updateEmployee = useUpdateEmployee();
+  
+  const employeeData = employees.find((e: any) => e.id === user?.id) || employees[0];
+  
+  const [profile, setProfile] = useState({
+    firstName: "",
+    lastName: "",
+    email: ""
+  });
+
+  useEffect(() => {
+    if (employeeData) {
+      const parts = employeeData.name.split(" ");
+      setProfile({
+        firstName: parts[0] || "",
+        lastName: parts.slice(1).join(" ") || "",
+        email: employeeData.email || ""
+      });
+    }
+  }, [employeeData]);
+
+  const handleSave = () => {
+    updateEmployee.mutate({
+      id: user?.id || employeeData?.id,
+      name: `${profile.firstName} ${profile.lastName}`.trim(),
+      email: profile.email
+    }, {
+      onSuccess: () => {
+        toast.success("Account settings updated successfully.");
+      }
+    });
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" description="Manage your workspace and personal preferences." />
@@ -45,20 +85,22 @@ export function SettingsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-muted-foreground">First name</Label>
-                <Input defaultValue="Aarav" className="h-11 rounded-xl" />
+                <Input value={profile.firstName} onChange={e => setProfile({...profile, firstName: e.target.value})} className="h-11 rounded-xl" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-muted-foreground">Last name</Label>
-                <Input defaultValue="Sharma" className="h-11 rounded-xl" />
+                <Input value={profile.lastName} onChange={e => setProfile({...profile, lastName: e.target.value})} className="h-11 rounded-xl" />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label className="text-xs font-medium text-muted-foreground">Email</Label>
-                <Input defaultValue="aarav@pulse.co" className="h-11 rounded-xl" />
+                <Input value={profile.email} onChange={e => setProfile({...profile, email: e.target.value})} className="h-11 rounded-xl" />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="outline" className="rounded-xl">Cancel</Button>
-              <Button className="rounded-xl">Save changes</Button>
+              <Button className="rounded-xl" onClick={handleSave} disabled={updateEmployee.isPending}>
+                {updateEmployee.isPending ? "Saving..." : "Save changes"}
+              </Button>
             </div>
           </section>
 

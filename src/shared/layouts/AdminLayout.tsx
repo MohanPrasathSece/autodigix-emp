@@ -1,6 +1,7 @@
 import { Outlet, Navigate } from "react-router-dom";
 import { useAuthStore } from "@/shared/store/auth";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { motion, AnimatePresence } from "framer-motion";
 import { AdminSidebar } from "@/admin/AdminSidebar";
 import { AppTopbar } from "@/components/app-topbar";
 import { Toaster } from "@/components/ui/sonner";
@@ -17,9 +18,17 @@ export function AdminLayout() {
       <SidebarInset className="bg-background">
         <AppTopbar />
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 sm:py-8">
-          <div key={typeof window !== "undefined" ? window.location.pathname : ""} className="animate-fade-in">
-            <Outlet />
-          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={typeof window !== "undefined" ? window.location.pathname : ""}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </SidebarInset>
       <Toaster />

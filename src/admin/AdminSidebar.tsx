@@ -13,6 +13,7 @@ import {
   Bell,
   Sun,
   ClipboardList,
+  LogOut,
 } from "lucide-react";
 import {
   Sidebar,
@@ -45,6 +46,7 @@ const account = [
 ];
 
 import { useLeaveRequests } from "@/shared/api/queries";
+import { useAuthStore } from "@/shared/store/auth";
 
 export function AdminSidebar() {
   const { pathname } = useLocation();
@@ -105,6 +107,23 @@ export function AdminSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50" 
+              onClick={() => {
+                useAuthStore.getState().logout();
+                window.location.href = '/';
+              }}
+              tooltip="Log out"
+            >
+              <LogOut className="size-4" />
+              <span>Log out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }

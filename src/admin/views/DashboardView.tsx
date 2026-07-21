@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useLeaveRequests, useEmployees, usePayslips, useAttendanceHistory } from "@/shared/api/queries";
 import { useUpdateLeaveRequestStatus, useAddNotification, useRunPayroll, useAddHoliday } from "@/shared/api/mutations";
 import { useNavigate } from "react-router-dom";
+import confetti from "canvas-confetti";
 
 export function AdminDashboardView() {
   const navigate = useNavigate();
@@ -54,10 +55,14 @@ export function AdminDashboardView() {
     const emp = employees.find((e: any) => e.id === h.employee_id);
     const empName = emp?.name || `Employee #${h.employee_id}`;
     const isOut = h.status === 'Clocked Out';
-    // Format stored time (date field is just YYYY-MM-DD; use created_at if available)
-    const timeLabel = h.created_at
-      ? new Date(h.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-      : h.date;
+    let timeLabel = h.date;
+    if (h.created_at) {
+      const d = new Date(h.created_at);
+      if (isOut && d.getHours() >= 19) {
+        d.setHours(19, 0, 0, 0);
+      }
+      timeLabel = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    }
     return {
       id: h.id,
       message: isOut
@@ -77,6 +82,11 @@ export function AdminDashboardView() {
           body: `You approved a leave request for ${name}.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           tone: "success"
+        });
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
         });
       }
     });
@@ -105,6 +115,12 @@ export function AdminDashboardView() {
           body: `Payroll for ${period} has been generated successfully.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           tone: "info"
+        });
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.5 },
+          colors: ['#10b981', '#3b82f6', '#f59e0b']
         });
       }
     });

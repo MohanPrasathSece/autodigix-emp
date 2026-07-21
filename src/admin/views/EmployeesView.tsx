@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function EmployeesPage() {
-  const { data: employees = [] } = useEmployees();
+  const { data: employees = [], isLoading } = useEmployees();
   const addEmployeeMutation = useAddEmployee();
   
   const navigate = useNavigate();
@@ -81,8 +81,22 @@ export function EmployeesPage() {
     );
   };
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-24 bg-muted rounded-2xl" />
+        <div className="h-16 bg-muted rounded-2xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+            <div key={i} className="h-64 rounded-3xl border bg-muted/60" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Employees"
         description="Directory of everyone at Acme Inc."

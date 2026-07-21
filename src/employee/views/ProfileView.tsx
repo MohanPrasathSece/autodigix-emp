@@ -1,35 +1,144 @@
-import { useState } from "react";
-import { Mail, Phone, MapPin, Building2, Calendar, Briefcase, Edit, Camera, Save, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Mail, Phone, MapPin, Building2, Calendar, Briefcase, Edit, Camera, Save, X, Trash2, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { employees } from "@/shared/lib/mock-data";
+import { useEmployees, useLeaveRequests, usePayslips } from "@/shared/api/queries";
+import { useUpdateEmployee } from "@/shared/api/mutations";
+import { useAuthStore } from "@/shared/store/auth";
+import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 
 export function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
-  const employeeData = employees[0]; // Aarav Sharma mock
+  const user = useAuthStore((state) => state.user);
+  const { data: employees = [], isLoading } = useEmployees();
+  const employeeData = employees.find((e: any) => e.id === user?.id) || employees[0];
+
+  const updateEmployee = useUpdateEmployee();
+  const { data: leaveRequests = [] } = useLeaveRequests();
+  const { data: payslips = [] } = usePayslips();
+
+  const myLeaves = leaveRequests.filter((l: any) => l.employee_id === user?.id);
+  const myPayslips = payslips.filter((p: any) => p.employee_id === user?.id);
+  
+  const activityLogs = [
+    ...myLeaves.map((l: any) => ({
+      id: `leave-${l.id}`,
+      title: `Leave ${l.status}`,
+      body: `Your request for ${l.days} days of ${l.type} leave was ${l.status.toLowerCase()}.`,
+      time: l.from,
+      tone: l.status === 'Approved' ? 'success' : l.status === 'Rejected' ? 'error' : 'warning'
+    })),
+    ...myPayslips.map((p: any) => ({
+      id: `payslip-${p.id}`,
+      title: `Payslip Generated`,
+      body: `Your payslip for ${p.period} has been generated. Net pay: ₹${p.net.toLocaleString('en-IN')}`,
+      time: p.created_at ? new Date(p.created_at).toLocaleDateString() : p.period,
+      tone: 'info'
+    }))
+  ];
 
   const [tempProfile, setTempProfile] = useState({
-    name: employeeData.name,
-    email: employeeData.email,
-    phone: "+1 (415) 555-0134",
-    location: "San Francisco, CA",
-    avatarUrl: employeeData.avatarUrl
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
+    manager_id: "",
+    avatarUrl: ""
   });
 
+  useEffect(() => {
+    if (employeeData) {
+      setTempProfile(prev => ({
+        ...prev,
+        name: employeeData.name,
+        email: employeeData.email,
+        phone: employeeData.phone || "",
+        location: employeeData.location || "",
+        manager_id: employeeData.manager_id || "",
+        avatarUrl: employeeData.avatarUrl || ""
+      }));
+    }
+  }, [employeeData]);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    try {
+      setIsUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      
+      setTempProfile(prev => ({ ...prev, avatarUrl: `${data.publicUrl}?t=${Date.now()}` }));
+      toast.success("Avatar uploaded successfully! Don't forget to save your profile.");
+    } catch (error: any) {
+      toast.error(`Upload failed: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemovePicture = () => {
+    setTempProfile(prev => ({ ...prev, avatarUrl: "" }));
+    toast.info("Avatar removed. Click save to apply changes.");
+  };
+
   const handleSave = () => {
-    // In a real app, we would update the backend here.
-    setIsEditing(false);
-    toast.success("Profile updated successfully.");
+    updateEmployee.mutate({
+      id: user?.id,
+      name: tempProfile.name,
+      email: tempProfile.email,
+      phone: tempProfile.phone,
+      location: tempProfile.location,
+      manager_id: tempProfile.manager_id,
+      avatar_url: tempProfile.avatarUrl
+    }, {
+      onSuccess: () => {
+        setIsEditing(false);
+        toast.success("Profile updated successfully.");
+      }
+    });
   };
 
   const handleCancel = () => {
     setIsEditing(false);
   };
+
+  if (isLoading || !employeeData) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-20 bg-muted rounded-xl" />
+        <div className="overflow-hidden rounded-2xl border bg-card">
+          <div className="h-32 bg-muted" />
+          <div className="px-6 pb-6 pt-16 flex gap-4">
+            <div className="size-24 rounded-2xl bg-muted/60 shrink-0" />
+            <div className="flex-1 space-y-3 pt-2">
+              <div className="h-6 bg-muted/60 rounded-md w-1/3" />
+              <div className="h-4 bg-muted/60 rounded-md w-1/4" />
+            </div>
+          </div>
+        </div>
+        <div className="h-64 bg-muted rounded-2xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -54,27 +163,48 @@ export function ProfilePage() {
         }
       />
 
-      <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
-        <div className="h-32 bg-gradient-to-r from-primary/20 via-blue-300/20 to-fuchsia-300/20" />
-        <div className="flex flex-col gap-4 px-6 pb-6 sm:flex-row sm:items-end sm:justify-between">
+      <div className="overflow-hidden rounded-2xl border bg-card shadow-soft p-6">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
             
             <div className="relative group">
               {tempProfile.avatarUrl ? (
-                <img src={tempProfile.avatarUrl} alt="Avatar" className="-mt-10 size-24 shrink-0 rounded-2xl object-cover ring-4 ring-card shadow-elevated" />
+                <img src={tempProfile.avatarUrl} alt="Avatar" className="size-24 shrink-0 rounded-2xl object-cover ring-1 ring-border shadow-sm" />
               ) : (
-                <div className={cn("-mt-10 grid size-24 shrink-0 place-items-center rounded-2xl bg-gradient-to-br text-3xl font-semibold text-white ring-4 ring-card shadow-elevated", employeeData.avatarColor)}>
-                  {employeeData.initials}
+                <div className={cn("grid size-24 shrink-0 place-items-center rounded-2xl bg-gradient-to-br text-3xl font-semibold text-white ring-1 ring-border shadow-sm", employeeData.avatarColor || "from-blue-500 to-indigo-500")}>
+                  {employeeData.initials || tempProfile.name.substring(0, 2).toUpperCase()}
+                </div>
+              )}
+              {employeeData?.status === "Active" && (
+                <div className="absolute bottom-1 -right-1 size-6 rounded-full border-4 border-card bg-emerald-500 shadow-sm flex items-center justify-center">
+                  <div className="size-2 rounded-full bg-white animate-pulse" />
                 </div>
               )}
               {isEditing && (
-                <button 
-                  className="absolute inset-0 -mt-10 bg-black/50 rounded-2xl flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]"
-                  onClick={() => toast.info("Profile picture upload dialog would open here.")}
-                >
-                  <Camera className="size-6" />
-                </button>
+                <div className="absolute inset-0 bg-black/50 rounded-2xl flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px] gap-2">
+                  {isUploading ? (
+                    <Loader2 className="size-6 animate-spin" />
+                  ) : (
+                    <>
+                      <button onClick={() => fileInputRef.current?.click()} className="hover:text-primary transition-colors" title="Change Picture">
+                        <Camera className="size-5" />
+                      </button>
+                      {tempProfile.avatarUrl && (
+                        <button onClick={handleRemovePicture} className="hover:text-red-400 transition-colors" title="Remove Picture">
+                          <Trash2 className="size-5" />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileUpload} 
+                accept="image/*" 
+                className="hidden" 
+              />
             </div>
 
             <div className="mb-1">
@@ -99,13 +229,12 @@ export function ProfilePage() {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList className="rounded-xl bg-muted/60 p-1">
+        <TabsList className="rounded-xl bg-muted/60 p-1 mb-6">
           <TabsTrigger value="overview" className="rounded-lg">Overview</TabsTrigger>
-          <TabsTrigger value="documents" className="rounded-lg">Documents</TabsTrigger>
-          <TabsTrigger value="activity" className="rounded-lg">Activity</TabsTrigger>
+          <TabsTrigger value="activity" className="rounded-lg">Activity History</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="mt-4">
+        <TabsContent value="overview">
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="rounded-2xl border bg-card p-6 shadow-soft lg:col-span-2">
               <h3 className="text-sm font-semibold">Contact</h3>
@@ -172,7 +301,11 @@ export function ProfilePage() {
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs text-muted-foreground">Manager</div>
-                    <div className="truncate text-sm font-medium">Liam O'Brien</div>
+                    {isEditing ? (
+                      <Input value={tempProfile.manager_id} onChange={e => setTempProfile({...tempProfile, manager_id: e.target.value})} className="h-7 text-sm px-2" placeholder="Manager ID" />
+                    ) : (
+                      <div className="truncate text-sm font-medium">{employeeData.manager_id || "Unassigned"}</div>
+                    )}
                   </div>
                 </div>
 
@@ -182,7 +315,9 @@ export function ProfilePage() {
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs text-muted-foreground">Joined</div>
-                    <div className="truncate text-sm font-medium">Mar 2, 2023</div>
+                    <div className="truncate text-sm font-medium">
+                      {new Date(employeeData.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    </div>
                   </div>
                 </div>
 
@@ -195,38 +330,31 @@ export function ProfilePage() {
                 <div className="flex justify-between"><span className="text-muted-foreground">Employee ID</span><span className="font-medium">{employeeData.id}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Employment type</span><span className="font-medium">Full-time</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Department</span><span className="font-medium">{employeeData.department}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Reports to</span><span className="font-medium">Liam O'Brien</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Reports to</span><span className="font-medium">{employeeData.manager_id || "Unassigned"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Contract ends</span><span className="font-medium">-</span></div>
               </div>
             </div>
           </div>
         </TabsContent>
 
-        <TabsContent value="documents" className="mt-4">
-          <div className="rounded-2xl border bg-card p-12 text-center shadow-soft">
-            <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-muted text-muted-foreground">
-              <Briefcase className="size-5" />
-            </div>
-            <h3 className="mt-4 text-base font-semibold">No documents yet</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Contracts and policies will appear here once uploaded.</p>
-            <Button className="mt-4 rounded-xl">Upload document</Button>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="activity" className="mt-4">
+        <TabsContent value="activity">
           <div className="rounded-2xl border bg-card p-6 shadow-soft">
-            <ol className="relative space-y-6 border-l pl-6">
-              {[
-                { t: "Approved leave", d: "Jul 15", body: "Your 3-day leave was approved by Liam." },
-                { t: "Payslip issued", d: "Jul 1", body: "June 2026 payslip generated." },
-                { t: "Promotion", d: "Apr 2", body: "Promoted to Senior Product Designer." },
-              ].map((e, i) => (
-                <li key={i} className="relative">
-                  <span className="absolute -left-[29px] top-1 grid size-4 place-items-center rounded-full border-2 border-card bg-primary" />
-                  <div className="text-sm font-medium">{e.t} <span className="text-xs font-normal text-muted-foreground">· {e.d}</span></div>
-                  <p className="text-xs text-muted-foreground">{e.body}</p>
+            <h3 className="text-sm font-semibold mb-6">Recent Activity</h3>
+            <ol className="relative space-y-6 border-l pl-6 border-muted">
+              {activityLogs.slice(0, 5).map((log: any, i: number) => (
+                <li key={log.id || i} className="relative">
+                  <span className={`absolute -left-[29px] top-1 grid size-4 place-items-center rounded-full border-2 border-card ${
+                    log.tone === 'success' ? 'bg-emerald-500' : 
+                    log.tone === 'error' ? 'bg-red-500' : 
+                    log.tone === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
+                  }`} />
+                  <div className="text-sm font-medium">{log.title} <span className="text-xs font-normal text-muted-foreground ml-2">· {log.time}</span></div>
+                  <p className="text-xs text-muted-foreground mt-1">{log.body}</p>
                 </li>
               ))}
+              {activityLogs.length === 0 && (
+                <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-xl text-center">No recent activity found.</div>
+              )}
             </ol>
           </div>
         </TabsContent>

@@ -1,4 +1,5 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, Navigate } from "react-router-dom";
+import { useAuthStore } from "@/shared/store/auth";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { EmployeeSidebar } from "@/employee/EmployeeSidebar";
 import { AppTopbar } from "@/components/app-topbar";
@@ -6,6 +7,10 @@ import { Toaster } from "@/components/ui/sonner";
 import { AttendanceProvider } from "@/lib/attendanceEngine";
 
 export function EmployeeLayout() {
+  const user = useAuthStore((state) => state.user);
+
+  if (!user) return <Navigate to="/" replace />;
+
   return (
     <AttendanceProvider>
       <SidebarProvider>

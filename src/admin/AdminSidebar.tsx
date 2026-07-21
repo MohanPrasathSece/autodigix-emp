@@ -44,9 +44,14 @@ const account = [
   { title: "Profile", url: "/admin/profile", icon: UserCircle },
 ];
 
+import { useLeaveRequests } from "@/shared/api/queries";
+
 export function AdminSidebar() {
   const { pathname } = useLocation();
   const isActive = (u: string) => pathname.startsWith(u);
+  
+  const { data: leaveRequests = [] } = useLeaveRequests();
+  const pendingLeavesCount = leaveRequests.filter((r: any) => r.status === "Pending").length;
 
   const renderItems = (items: typeof primary) =>
     items.map((item) => (
@@ -54,7 +59,14 @@ export function AdminSidebar() {
         <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
           <Link to={item.url}>
             <item.icon className="size-4" />
-            <span>{item.title}</span>
+            <span className="flex-1 flex items-center justify-between">
+              {item.title}
+              {item.title === "Leave Approvals" && pendingLeavesCount > 0 && (
+                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-4 text-center">
+                  {pendingLeavesCount}
+                </span>
+              )}
+            </span>
           </Link>
         </SidebarMenuButton>
       </SidebarMenuItem>

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,13 +11,58 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
+import { useAddEmployee } from "@/shared/api/mutations";
 
 export function AddEmployeeView() {
+  const addEmployeeMutation = useAddEmployee();
+
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    department: "",
+    role: "",
+    password: "AutoDigix2026!"
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Employee Profile Created", {
-      description: "The employee has been added to the system and a welcome email was sent."
-    });
+    if (!formData.name || !formData.email || !formData.department || !formData.role || !formData.password) {
+      toast.error("Please fill in all required fields.");
+      return;
+    }
+
+    const newId = `EMP-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+    
+    // Generate initials
+    const initials = formData.name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
+
+    addEmployeeMutation.mutate(
+      {
+        id: newId,
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        department: formData.department,
+        status: "Active",
+        attendance: 100,
+        avatar_color: "from-blue-500 to-indigo-500", // Default color
+        initials: initials
+      },
+      {
+        onSuccess: () => {
+          toast.success("Employee Profile Created", {
+            description: "The employee has been added to the system and a welcome email was sent."
+          });
+          setFormData({ name: "", email: "", department: "", role: "", password: "AutoDigix2026!" });
+        }
+      }
+    );
   };
 
   return (
@@ -38,7 +84,12 @@ export function AddEmployeeView() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Full Name <span className="text-red-500">*</span></Label>
-              <Input placeholder="e.g. John Doe" required />
+              <Input 
+                placeholder="e.g. John Doe" 
+                required 
+                value={formData.name}
+                onChange={e => setFormData({...formData, name: e.target.value})}
+              />
             </div>
             <div className="space-y-2">
               <Label>Personal Phone Number</Label>
@@ -79,26 +130,31 @@ export function AddEmployeeView() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Employee ID (Auto-generated)</Label>
-              <Input placeholder="EMP-004" disabled className="bg-muted/50" />
+              <Input placeholder="EMP-####" disabled className="bg-muted/50" />
             </div>
             <div className="space-y-2">
               <Label>Department <span className="text-red-500">*</span></Label>
-              <Select required>
+              <Select required value={formData.department} onValueChange={v => setFormData({...formData, department: v})}>
                 <SelectTrigger className="rounded-xl">
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="engineering">Engineering</SelectItem>
-                  <SelectItem value="design">Design</SelectItem>
-                  <SelectItem value="hr">Human Resources</SelectItem>
-                  <SelectItem value="sales">Sales & Marketing</SelectItem>
-                  <SelectItem value="finance">Finance</SelectItem>
+                  <SelectItem value="Engineering">Engineering</SelectItem>
+                  <SelectItem value="Design">Design</SelectItem>
+                  <SelectItem value="Human Resources">Human Resources</SelectItem>
+                  <SelectItem value="Sales & Marketing">Sales & Marketing</SelectItem>
+                  <SelectItem value="Finance">Finance</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Job Title / Designation <span className="text-red-500">*</span></Label>
-              <Input placeholder="e.g. Senior Software Engineer" required />
+              <Input 
+                placeholder="e.g. Senior Software Engineer" 
+                required 
+                value={formData.role}
+                onChange={e => setFormData({...formData, role: e.target.value})}
+              />
             </div>
             <div className="space-y-2">
               <Label>Employment Type</Label>
@@ -138,11 +194,22 @@ export function AddEmployeeView() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Work Email Address <span className="text-red-500">*</span></Label>
-              <Input type="email" required placeholder="name@autodigix.com" />
+              <Input 
+                type="email" 
+                required 
+                placeholder="name@autodigix.com" 
+                value={formData.email}
+                onChange={e => setFormData({...formData, email: e.target.value})}
+              />
             </div>
             <div className="space-y-2">
               <Label>Temporary Password <span className="text-red-500">*</span></Label>
-              <Input type="text" required defaultValue="AutoDigix2026!" />
+              <Input 
+                type="text" 
+                required 
+                value={formData.password}
+                onChange={e => setFormData({...formData, password: e.target.value})}
+              />
               <p className="text-[11px] text-muted-foreground mt-1">
                 Employee will be forced to change this upon first login.
               </p>
@@ -176,7 +243,9 @@ export function AddEmployeeView() {
 
         <div className="flex justify-end gap-3 pt-2">
           <Button variant="outline" type="button" className="rounded-xl px-6">Cancel</Button>
-          <Button type="submit" className="rounded-xl px-6">Create Employee Profile</Button>
+          <Button type="submit" className="rounded-xl px-6" disabled={addEmployeeMutation.isPending}>
+            {addEmployeeMutation.isPending ? "Creating..." : "Create Employee Profile"}
+          </Button>
         </div>
       </form>
     </div>

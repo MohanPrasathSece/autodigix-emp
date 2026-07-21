@@ -9,15 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useNotifications, useHolidays, useLeaveRequests, useEmployees } from "@/shared/api/queries";
 
 type DayKind = "govt-holiday" | "weekend" | "none";
-
-// Mock Data for Govt Holidays
-const govtHolidays: Record<string, string> = {
-  "2026-07-04": "Independence Day",
-  "2026-08-15": "National Day",
-  "2026-10-02": "Gandhi Jayanti",
-};
 
 const kindStyles: Record<DayKind, string> = {
   "govt-holiday": "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-500/40 hover:border-emerald-500/60 font-semibold",
@@ -32,11 +26,11 @@ function formatDateKey(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
-function buildDays(year: number, month: number) {
+function buildDays(year: number, month: number, govtHolidaysMap: Record<string, string>, leaves: any[], employees: any[]) {
   const first = new Date(year, month, 1);
   const startOffset = first.getDay(); // 0 Sun
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: { date?: Date; kind: DayKind; note?: string }[] = [];
+  const cells: { date?: Date; kind: DayKind; note?: string; leaves?: any[] }[] = [];
   
   for (let i = 0; i < startOffset; i++) cells.push({ kind: "none" });
   
@@ -47,16 +41,28 @@ function buildDays(year: number, month: number) {
     
     let kind: DayKind = "none";
     let note = "Working Day";
+    let dayLeaves: any[] = [];
+
+    leaves.forEach(l => {
+      const from = new Date(l.from || l.from_date);
+      const to = new Date(l.to || l.to_date);
+      if (dt >= from && dt <= to && l.status === "Approved") {
+        const emp = employees.find((e: any) => e.id === l.employee_id);
+        if (emp) {
+          dayLeaves.push({ ...l, employee: emp });
+        }
+      }
+    });
 
     if (dow === 0 || dow === 6) {
       kind = "weekend";
       note = "Weekend (Leave)";
-    } else if (govtHolidays[dateKey]) {
+    } else if (govtHolidaysMap[dateKey]) {
       kind = "govt-holiday";
-      note = `${govtHolidays[dateKey]} - Government Holiday`;
+      note = `${govtHolidaysMap[dateKey]} - Government Holiday`;
     }
     
-    cells.push({ date: dt, kind, note });
+    cells.push({ date: dt, kind, note, leaves: dayLeaves });
   }
   
   while (cells.length % 7 !== 0) cells.push({ kind: "none" });
@@ -68,36 +74,38 @@ const legend: { kind: DayKind; label: string }[] = [
   { kind: "govt-holiday", label: "Govt Holiday" },
 ];
 
-const mockLogs = [
-  { id: 1, type: "work", message: "Aarav Sharma started work", time: "Today, 09:00 AM", timestamp: new Date(Date.now() - 2 * 3600000) },
-  { id: 2, type: "leave", message: "Priya Patel's leave request approved", time: "Today, 09:15 AM", timestamp: new Date(Date.now() - 3 * 3600000) },
-  { id: 3, type: "work", message: "Rahul Verma started work", time: "Today, 09:30 AM", timestamp: new Date(Date.now() - 4 * 3600000) },
-  { id: 4, type: "leave", message: "Vikram Singh's leave request rejected", time: "Yesterday, 10:00 AM", timestamp: new Date(Date.now() - 26 * 3600000) },
-  { id: 5, type: "work", message: "Neha Gupta stopped work", time: "Yesterday, 06:00 PM", timestamp: new Date(Date.now() - 30 * 3600000) },
-  { id: 6, type: "work", message: "Aarav Sharma stopped work", time: "2 Days ago, 06:15 PM", timestamp: new Date(Date.now() - 48 * 3600000) },
-  { id: 7, type: "leave", message: "System auto-deleted logs older than 7 days", time: "1 Week ago", timestamp: new Date(Date.now() - 7 * 24 * 3600000) },
-];
+// Removed mockLogs to use database notifications
 
 export function CalendarPage() {
   const [baseDate, setBaseDate] = useState(new Date()); // Starts current month
-  const [selectedDay, setSelectedDay] = useState<{ date: Date; kind: DayKind; note: string } | null>(null);
+  const [selectedDay, setSelectedDay] = useState<{ date: Date; kind: DayKind; note: string; leaves?: any[] } | null>(null);
+
+  const { data: notifications = [] } = useNotifications();
+  const { data: holidays = [] } = useHolidays();
+  const { data: leaveRequests = [] } = useLeaveRequests();
+  const { data: employees = [] } = useEmployees();
+
+  const govtHolidaysMap = holidays.reduce((acc: any, h: any) => {
+    acc[h.date] = h.name;
+    return acc;
+  }, {});
 
   // Filter logs to last 7 days only (to simulate auto deletion)
-  const recentLogs = mockLogs.filter(log => {
+  const recentLogs = notifications.filter((log: any) => {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    return log.timestamp >= oneWeekAgo;
+    return new Date(log.created_at) >= oneWeekAgo;
   });
 
   // Build data for 1 month
   const targetDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
   const monthData = {
     label: targetDate.toLocaleString("en", { month: "long", year: "numeric" }),
-    cells: buildDays(targetDate.getFullYear(), targetDate.getMonth())
+    cells: buildDays(targetDate.getFullYear(), targetDate.getMonth(), govtHolidaysMap, leaveRequests, employees)
   };
 
-  const nextMonth = () => setBaseDate(new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 1));
-  const prevMonth = () => setBaseDate(new Date(baseDate.getFullYear(), baseDate.getMonth() - 1, 1));
+  const nextMonth = () => setBaseDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  const prevMonth = () => setBaseDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   const goToday = () => setBaseDate(new Date());
 
   return (
@@ -111,7 +119,7 @@ export function CalendarPage() {
               <ChevronLeft className="size-4" />
             </Button>
             <Button variant="outline" className="rounded-xl" onClick={goToday}>
-              Today
+              {new Date().toLocaleString("en-US", { month: "long" })}
             </Button>
             <Button size="icon" variant="outline" className="rounded-xl" onClick={nextMonth}>
               <ChevronRight className="size-4" />
@@ -130,7 +138,7 @@ export function CalendarPage() {
                   <ChevronLeft className="size-4" />
                 </Button>
                 <Button variant="outline" className="h-8 text-xs rounded-lg" onClick={goToday}>
-                  Today
+                  {new Date().toLocaleString("en-US", { month: "long" })}
                 </Button>
                 <Button size="icon" variant="outline" className="size-8 rounded-lg" onClick={nextMonth}>
                   <ChevronRight className="size-4" />
@@ -147,13 +155,31 @@ export function CalendarPage() {
                 <button
                   key={i}
                   disabled={!c.date}
-                  onClick={() => c.date && setSelectedDay({ date: c.date, kind: c.kind, note: c.note || "" })}
+                  onClick={() => c.date && setSelectedDay({ date: c.date, kind: c.kind, note: c.note || "", leaves: c.leaves || [] })}
                   className={cn(
-                    "h-10 sm:h-12 rounded-lg border transition-all text-sm font-medium flex items-center justify-center relative hover:bg-muted/50",
+                    "h-12 sm:h-16 rounded-lg border transition-all text-sm font-medium flex flex-col items-center justify-start pt-1.5 relative hover:bg-muted/50",
                     c.date ? kindStyles[c.kind] : "opacity-0 pointer-events-none border-transparent",
                   )}
                 >
-                  {c.date && c.date.getDate()}
+                  <span className="z-10 text-xs">{c.date && c.date.getDate()}</span>
+                  {c.leaves && c.leaves.length > 0 && (
+                    <div className="flex -space-x-1.5 mt-1 pointer-events-none z-10 px-1 w-full justify-center">
+                      {c.leaves.slice(0, 3).map((l: any, idx: number) => (
+                        <div key={idx} className="size-5 rounded-full border-2 border-card bg-blue-500 flex items-center justify-center text-[9px] text-white overflow-hidden shadow-sm shrink-0">
+                           {l.employee.avatar_url || l.employee.avatarUrl ? (
+                              <img src={l.employee.avatar_url || l.employee.avatarUrl} className="w-full h-full object-cover" />
+                           ) : (
+                              l.employee.initials || l.employee.name.substring(0,2).toUpperCase()
+                           )}
+                        </div>
+                      ))}
+                      {c.leaves.length > 3 && (
+                        <div className="size-5 rounded-full border-2 border-card bg-gray-500 flex items-center justify-center text-[9px] text-white shrink-0">
+                          +{c.leaves.length - 3}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
@@ -186,11 +212,11 @@ export function CalendarPage() {
             </div>
             
             <div className="p-4 flex-1 overflow-y-auto space-y-4">
-              {recentLogs.map((log) => (
+              {recentLogs.map((log: any) => (
                 <div key={log.id} className="flex gap-3 text-sm border-b pb-4 last:border-0">
-                  <div className={`mt-1 size-2 shrink-0 rounded-full ${log.type === 'work' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'}`} />
+                  <div className={`mt-1 size-2 shrink-0 rounded-full ${log.tone === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : log.tone === 'warning' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]'}`} />
                   <div>
-                    <p className="font-medium text-sm leading-tight">{log.message}</p>
+                    <p className="font-medium text-sm leading-tight">{log.body}</p>
                     <p className="text-xs text-muted-foreground mt-1">{log.time}</p>
                   </div>
                 </div>
@@ -216,7 +242,7 @@ export function CalendarPage() {
             </DialogTitle>
           </DialogHeader>
           
-          <div className="py-6">
+          <div className="py-6 space-y-4">
             <div className={cn("p-4 rounded-xl border flex gap-3 items-start", selectedDay ? kindStyles[selectedDay.kind] : "")}>
               <Info className="size-5 mt-0.5 shrink-0" />
               <div>
@@ -228,6 +254,31 @@ export function CalendarPage() {
                 </p>
               </div>
             </div>
+
+            {selectedDay?.leaves && selectedDay.leaves.length > 0 && (
+              <div className="mt-4 pt-4 border-t">
+                <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                  Employees on Leave ({selectedDay.leaves.length})
+                </h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                  {selectedDay.leaves.map((l: any, i: number) => (
+                    <div key={i} className="flex items-center gap-3 p-3 border rounded-xl bg-muted/20">
+                      <div className="size-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-white flex items-center justify-center text-xs overflow-hidden shrink-0 shadow-sm border">
+                        {l.employee.avatar_url || l.employee.avatarUrl ? (
+                          <img src={l.employee.avatar_url || l.employee.avatarUrl} className="w-full h-full object-cover" />
+                        ) : (
+                          l.employee.initials || l.employee.name.substring(0,2).toUpperCase()
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate">{l.employee.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{l.type} · {l.subject}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

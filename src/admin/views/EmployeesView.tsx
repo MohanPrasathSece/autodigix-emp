@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Search, Plus, MoreHorizontal, Mail, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -10,21 +9,77 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { employees } from "@/lib/mock-data";
+import { useEmployees } from "@/shared/api/queries";
+import { useAddEmployee } from "@/shared/api/mutations";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function EmployeesPage() {
+  const { data: employees = [] } = useEmployees();
+  const addEmployeeMutation = useAddEmployee();
+  
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    role: "",
+    password: "AutoDigix2026!",
+  });
+
   const rows = employees.filter(
-    (e) =>
+    (e: any) =>
       e.name.toLowerCase().includes(q.toLowerCase()) ||
       e.role.toLowerCase().includes(q.toLowerCase()),
   );
+
+  const handleCreateAccount = () => {
+    if (!formData.name || !formData.email || !formData.role) {
+      toast.error("Please fill out name, email, and role.");
+      return;
+    }
+
+    const maxIdNum = employees.reduce((max: number, emp: any) => {
+      if (emp.id.startsWith("EMP-")) {
+        const numId = parseInt(emp.id.replace("EMP-", ""));
+        return !isNaN(numId) && numId > max ? numId : max;
+      }
+      return max;
+    }, 0);
+    const newId = `EMP-${maxIdNum + 1}`;
+    
+    const initials = formData.name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
+
+    addEmployeeMutation.mutate(
+      {
+        id: newId,
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        department: "General", // Default
+        status: "Active",
+        attendance: 100,
+        avatar_color: "from-blue-500 to-indigo-500",
+        initials: initials,
+        password: formData.password
+      },
+      {
+        onSuccess: () => {
+          toast.success("Employee account created successfully.");
+          setIsAddModalOpen(false);
+          setFormData({ name: "", email: "", role: "", password: "AutoDigix2026!" });
+        }
+      }
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -46,12 +101,23 @@ export function EmployeesPage() {
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold text-muted-foreground border-b pb-2">Personal & Account Details</h4>
                   <div className="grid gap-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" placeholder="John Doe" />
+                    <Label htmlFor="name">Full Name <span className="text-red-500">*</span></Label>
+                    <Input 
+                      id="name" 
+                      placeholder="John Doe" 
+                      value={formData.name}
+                      onChange={e => setFormData({...formData, name: e.target.value})}
+                    />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" type="email" placeholder="john@example.com" />
+                    <Label htmlFor="email">Email Address <span className="text-red-500">*</span></Label>
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="john@example.com" 
+                      value={formData.email}
+                      onChange={e => setFormData({...formData, email: e.target.value})}
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="password">Temporary Password</Label>
@@ -60,6 +126,8 @@ export function EmployeesPage() {
                         id="password" 
                         type={showPassword ? "text" : "password"} 
                         placeholder="••••••••" 
+                        value={formData.password}
+                        onChange={e => setFormData({...formData, password: e.target.value})}
                       />
                       <button 
                         type="button" 
@@ -76,8 +144,13 @@ export function EmployeesPage() {
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold text-muted-foreground border-b pb-2">Employment Details</h4>
                   <div className="grid gap-2">
-                    <Label htmlFor="role">Role / Job Title</Label>
-                    <Input id="role" placeholder="e.g. Software Engineer" />
+                    <Label htmlFor="role">Role / Job Title <span className="text-red-500">*</span></Label>
+                    <Input 
+                      id="role" 
+                      placeholder="e.g. Software Engineer" 
+                      value={formData.role}
+                      onChange={e => setFormData({...formData, role: e.target.value})}
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label>Access Level</Label>
@@ -109,10 +182,9 @@ export function EmployeesPage() {
               </div>
               <DialogFooter className="mt-4">
                 <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
-                <Button onClick={() => {
-                  toast.success("Employee account created successfully.");
-                  setIsAddModalOpen(false);
-                }}>Create Account</Button>
+                <Button onClick={handleCreateAccount} disabled={addEmployeeMutation.isPending}>
+                  {addEmployeeMutation.isPending ? "Creating..." : "Create Account"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -143,7 +215,7 @@ export function EmployeesPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {rows.map((e) => (
+            {rows.map((e: any) => (
               <div 
                 key={e.id}
                 onClick={() => navigate(`/admin/employees/${e.id}`)}
@@ -195,8 +267,12 @@ export function EmployeesPage() {
                     <span className="text-foreground">{e.email.split('@')[0]}</span>
                   </div>
                   <div className="flex justify-between items-center">
+                    <span>Password</span>
+                    <span className="text-foreground font-mono bg-muted/50 px-1.5 py-0.5 rounded">{e.password}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
                     <span>Access Level</span>
-                    <span className="text-foreground">{e.role.includes("HR") || e.role.includes("Manager") ? "Admin" : "Employee"}</span>
+                    <span className="text-foreground">{e.role.includes("HR") || e.role.includes("Manager") || e.role.includes("Admin") ? "Admin" : "Employee"}</span>
                   </div>
                 </div>
               </div>

@@ -1,10 +1,16 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, Navigate } from "react-router-dom";
+import { useAuthStore } from "@/shared/store/auth";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/admin/AdminSidebar";
 import { AppTopbar } from "@/components/app-topbar";
 import { Toaster } from "@/components/ui/sonner";
 
 export function AdminLayout() {
+  const user = useAuthStore((state) => state.user);
+
+  if (!user) return <Navigate to="/" replace />;
+  if (user.role !== 'admin') return <Navigate to="/employee/dashboard" replace />;
+
   return (
     <SidebarProvider>
       <AdminSidebar />

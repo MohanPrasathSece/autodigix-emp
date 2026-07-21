@@ -1,22 +1,15 @@
-import { useState, useMemo } from "react";
-import { Clock, CalendarCheck, Users, AlertTriangle, Play, Square, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Clock, CalendarCheck, Users, AlertTriangle, Play, Square, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { employees } from "@/shared/lib/mock-data";
+import { useEmployees } from "@/shared/api/queries";
+import { useUpdateAttendance } from "@/shared/api/mutations";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { format, subMonths, eachDayOfInterval, startOfMonth, endOfMonth, isSameDay, startOfWeek, endOfWeek, addMonths } from "date-fns";
-
-// --- Mock Progress Engine ---
-const getProgress = (id: string) => {
-  if (id === "EMP-001") return 50; // Aarav: Working normally
-  if (id === "EMP-002") return 0; // Sofia: Hasn't started / Remote
-  if (id === "EMP-003") return 30; // Liam: Started late
-  return 0;
-};
+import { format, subMonths, eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths } from "date-fns";
 
 const getStatus = (progress: number, status: string) => {
   if (status === "On Leave") return { text: "On Leave", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" };
@@ -53,6 +46,7 @@ function CircularProgress({ value, color = "var(--primary)" }: { value: number, 
 
 // 6-Month Calendar Component
 function AbsenceCalendar() {
+  const { data: employees = [] } = useEmployees();
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const daysInMonth = useMemo(() => {
@@ -66,10 +60,10 @@ function AbsenceCalendar() {
 
   // Gather all absent dates for easy lookup
   const allAbsences = useMemo(() => {
-    const map = new Map<string, { emp: typeof employees[0], subject: string }[]>();
-    employees.forEach(emp => {
+    const map = new Map<string, { emp: any, subject: string }[]>();
+    employees.forEach((emp: any) => {
       if (emp.absentDates) {
-        emp.absentDates.forEach(ab => {
+        emp.absentDates.forEach((ab: any) => {
           const arr = map.get(ab.date) || [];
           arr.push({ emp, subject: ab.subject });
           map.set(ab.date, arr);
@@ -77,7 +71,7 @@ function AbsenceCalendar() {
       }
     });
     return map;
-  }, []);
+  }, [employees]);
 
   return (
     <div className="rounded-2xl border bg-card p-6 shadow-soft max-w-xl mx-auto">
@@ -91,11 +85,11 @@ function AbsenceCalendar() {
       </div>
 
       <div className="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-semibold text-muted-foreground">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d: any) => <div key={d}>{d}</div>)}
       </div>
 
       <div className="grid grid-cols-7 gap-2">
-        {daysInMonth.map((day, i) => {
+        {daysInMonth.map((day, i: any) => {
           const dateStr = format(day, "yyyy-MM-dd");
           const absences = allAbsences.get(dateStr) || [];
           const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
@@ -121,13 +115,13 @@ function AbsenceCalendar() {
               </span>
               
               <div className="flex-1 flex flex-wrap gap-1 mt-1 content-start">
-                {absences.map((ab, idx) => (
+                {absences.map((ab, idx: any) => (
                   <Popover key={idx}>
                     <PopoverTrigger asChild>
                       {ab.emp.avatarUrl ? (
                         <img src={ab.emp.avatarUrl} className="size-6 rounded-full cursor-pointer ring-2 ring-background shadow-sm hover:scale-110 transition-transform" alt={ab.emp.name} />
                       ) : (
-                        <div className={cn("grid size-6 place-items-center rounded-full text-[9px] font-bold text-white cursor-pointer ring-2 ring-background shadow-sm hover:scale-110 transition-transform", ab.emp.avatarColor)}>
+                        <div className={cn("grid size-6 place-items-center rounded-full text-[9px] font-bold text-white cursor-pointer ring-2 ring-background shadow-sm hover:scale-110 transition-transform", ab.emp.avatar_color || ab.emp.avatarColor)}>
                           {ab.emp.initials}
                         </div>
                       )}
@@ -137,7 +131,7 @@ function AbsenceCalendar() {
                         {ab.emp.avatarUrl ? (
                           <img src={ab.emp.avatarUrl} className="size-8 rounded-full" alt={ab.emp.name} />
                         ) : (
-                          <div className={cn("grid size-8 place-items-center rounded-full text-xs font-bold text-white", ab.emp.avatarColor)}>
+                          <div className={cn("grid size-8 place-items-center rounded-full text-xs font-bold text-white", ab.emp.avatar_color || ab.emp.avatarColor)}>
                             {ab.emp.initials}
                           </div>
                         )}
@@ -162,25 +156,58 @@ function AbsenceCalendar() {
 }
 
 
+// Format seconds to HH:MM:SS
+function fmtSecs(secs: number) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+}
+
 export function AttendancePage() {
+  const { data: employees = [] } = useEmployees();
+  const updateAttendanceMutation = useUpdateAttendance();
   const [activeTab, setActiveTab] = useState("live");
   const [confirmAction, setConfirmAction] = useState<{ type: "Start" | "Stop", empId: string, name: string } | null>(null);
+  const [now, setNow] = useState(new Date());
 
-  const activeCount = employees.filter(e => getProgress(e.id) > 0 && getProgress(e.id) < 100 && e.status !== "On Leave").length;
-  const leaveCount = employees.filter(e => e.status === "On Leave").length;
+  // Live clock — ticks every second
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const todayLabel = now.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const currentTimeLabel = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  // Read employee clock-in times from localStorage (keyed by employee id if admin forced, or the shared key)
+  const clockInAt = localStorage.getItem("autodigix_clock_in_at");
+
+  const activeCount = employees.filter((e: any) => e.attendance > 0 && e.attendance < 100 && e.status !== "On Leave").length;
+  const leaveCount = employees.filter((e: any) => e.status === "On Leave").length;
   const notStartedCount = employees.length - activeCount - leaveCount;
 
   const handleConfirm = () => {
     if (!confirmAction) return;
-    toast.success(`Successfully manually ${confirmAction.type.toLowerCase()}ed work for ${confirmAction.name}`);
-    setConfirmAction(null);
+    
+    const newAttendance = confirmAction.type === "Start" ? 50 : 100;
+    
+    updateAttendanceMutation.mutate(
+      { id: confirmAction.empId, newAttendance },
+      {
+        onSuccess: () => {
+          toast.success(`Successfully manually ${confirmAction.type.toLowerCase()}ed work for ${confirmAction.name}`);
+          setConfirmAction(null);
+        }
+      }
+    );
   };
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       <PageHeader
         title="Attendance & Timetracking"
-        description="Monitor real-time active work progress and view historical absence records."
+        description={`${todayLabel} · ${currentTimeLabel}`}
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -223,8 +250,8 @@ export function AttendancePage() {
 
           {/* Employee Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {employees.map(emp => {
-              const progress = emp.status === "On Leave" ? 0 : getProgress(emp.id);
+            {employees.map((emp: any) => {
+              const progress = emp.status === "On Leave" ? 0 : emp.attendance;
               const status = getStatus(progress, emp.status);
               
               let ringColor = "var(--primary)";
@@ -266,7 +293,7 @@ export function AttendancePage() {
                   {emp.avatarUrl ? (
                     <img src={emp.avatarUrl} alt={emp.name} className="size-10 rounded-xl object-cover shadow-soft mb-3 absolute top-4 left-4 border" />
                   ) : (
-                    <div className={cn("grid size-10 place-items-center rounded-xl bg-gradient-to-br text-xs font-semibold text-white shadow-soft mb-3 absolute top-4 left-4", emp.avatarColor)}>
+                    <div className={cn("grid size-10 place-items-center rounded-xl bg-gradient-to-br text-xs font-semibold text-white shadow-soft mb-3 absolute top-4 left-4", emp.avatar_color || emp.avatarColor)}>
                       {emp.initials}
                     </div>
                   )}
@@ -274,9 +301,19 @@ export function AttendancePage() {
                   <h3 className="text-base font-bold">{emp.name}</h3>
                   <p className="text-xs text-muted-foreground font-medium mb-4">{emp.role}</p>
 
-                  <div className="w-full pt-4 border-t border-dashed flex justify-between items-center text-xs font-medium text-muted-foreground/80">
-                    <div className="flex items-center gap-1"><Clock className="size-3" /> 10:00</div>
-                    <div className="flex items-center gap-1">19:00 <Clock className="size-3" /></div>
+                  <div className="w-full pt-4 border-t border-dashed space-y-2">
+                    <div className="flex justify-between items-center text-xs font-medium text-muted-foreground/80">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                      <div className="flex items-center gap-1 font-mono"><Clock className="size-3" /> {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+                    </div>
+                    {progress > 0 && progress < 100 && clockInAt && (
+                      <div className="text-center">
+                        <span className="text-[10px] text-muted-foreground">Started </span>
+                        <span className="text-[10px] font-semibold">{new Date(parseInt(clockInAt, 10)).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="mx-1 text-[10px] text-muted-foreground">·</span>
+                        <span className="font-mono text-[10px] font-bold text-primary">{fmtSecs(Math.floor((now.getTime() - parseInt(clockInAt, 10)) / 1000))}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -298,7 +335,7 @@ export function AttendancePage() {
               Force {confirmAction?.type} Work
             </DialogTitle>
             <DialogDescription className="pt-3">
-              Are you sure you want to manually <strong>{confirmAction?.type.toLowerCase()}</strong> the shift for {confirmAction?.name}? 
+              Are you sure you want to manually <strong>{confirmAction?.type?.toLowerCase()}</strong> the shift for {confirmAction?.name}? 
               This will create an admin override log in the system.
             </DialogDescription>
           </DialogHeader>
@@ -307,8 +344,9 @@ export function AttendancePage() {
             <Button 
               className={cn("rounded-xl text-white", confirmAction?.type === "Stop" ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700")}
               onClick={handleConfirm}
+              disabled={updateAttendanceMutation.isPending}
             >
-              Confirm {confirmAction?.type}
+              {updateAttendanceMutation.isPending ? "Confirming..." : `Confirm ${confirmAction?.type}`}
             </Button>
           </DialogFooter>
         </DialogContent>

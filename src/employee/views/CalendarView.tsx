@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Info, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,18 +13,14 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
-type DayKind = "present" | "leave-approved" | "leave-pending" | "govt-holiday" | "weekend" | "absent" | "none";
+import { useHolidays, useLeaveRequests } from "@/shared/api/queries";
+import { useAuthStore } from "@/shared/store/auth";
 
-// Mock Data for Govt Holidays
-const govtHolidays: Record<string, string> = {
-  "2026-07-04": "Independence Day",
-  "2026-08-15": "National Day",
-  "2026-10-02": "Gandhi Jayanti",
-};
+type DayKind = "present" | "leave-approved" | "leave-pending" | "govt-holiday" | "weekend" | "absent" | "none";
 
 const kindStyles: Record<DayKind, string> = {
   present: "bg-primary/10 text-primary border-primary/20 hover:border-primary/40",
-  "leave-approved": "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20 hover:border-blue-500/40",
+  "leave-approved": "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30 hover:border-red-500/50 font-bold overflow-hidden",
   "leave-pending": "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 hover:border-amber-500/40",
   "govt-holiday": "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-500/40 hover:border-emerald-500/60 font-semibold",
   weekend: "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20 hover:border-green-500/40",
@@ -39,7 +35,7 @@ function formatDateKey(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
-function buildDays(year: number, month: number) {
+function buildDays(year: number, month: number, govtHolidaysMap: Record<string, string>, userLeaves: any[]) {
   const first = new Date(year, month, 1);
   const startOffset = first.getDay(); // 0 Sun
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -55,26 +51,23 @@ function buildDays(year: number, month: number) {
     let kind: DayKind = "present";
     let note = "Working Day";
 
+    // Check if this date falls in any user leave
+    const leaveForDay = userLeaves.find(l => {
+      const from = new Date(l.from || l.from_date);
+      const to = new Date(l.to || l.to_date);
+      return dt >= from && dt <= to;
+    });
+
     if (dow === 0 || dow === 6) {
       kind = "weekend";
       note = "Weekend (Leave)";
-    } else if (govtHolidays[dateKey]) {
+    } else if (govtHolidaysMap[dateKey]) {
       kind = "govt-holiday";
-      note = `${govtHolidays[dateKey]} - Government Holiday`;
-    } else {
-      // Dummy logic for other statuses
-      if (d === 12) {
-        kind = "leave-approved";
-        note = "Approved Leave (Sick)";
-      }
-      if (d === 18 || d === 19) {
-        kind = "leave-pending";
-        note = "Pending Leave Request";
-      }
-      if (d === 8) {
-        kind = "absent";
-        note = "Absent without leave";
-      }
+      note = `${govtHolidaysMap[dateKey]} - Government Holiday`;
+    } else if (leaveForDay) {
+      kind = leaveForDay.status === "Approved" ? "leave-approved" : 
+             leaveForDay.status === "Pending" ? "leave-pending" : "present";
+      note = `${leaveForDay.status} Leave (${leaveForDay.type})`;
     }
     
     cells.push({ date: dt, kind, note });
@@ -97,12 +90,23 @@ export function CalendarPage() {
   const [baseDate, setBaseDate] = useState(new Date(2026, 6, 1)); // Starts July 2026
   const [selectedDay, setSelectedDay] = useState<{ date: Date; kind: DayKind; note: string } | null>(null);
 
+  const { data: holidays = [] } = useHolidays();
+  const { data: leaveRequests = [] } = useLeaveRequests();
+  const { user } = useAuthStore();
+
+  const govtHolidaysMap = holidays.reduce((acc: any, h: any) => {
+    acc[h.date] = h.name;
+    return acc;
+  }, {});
+
+  const myLeaves = leaveRequests.filter((l: any) => l.employee_id === user?.id);
+
   // Build data for 3 consecutive months
   const monthsData = [0, 1, 2].map(offset => {
     const targetDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + offset, 1);
     return {
       label: targetDate.toLocaleString("en", { month: "long", year: "numeric" }),
-      cells: buildDays(targetDate.getFullYear(), targetDate.getMonth())
+      cells: buildDays(targetDate.getFullYear(), targetDate.getMonth(), govtHolidaysMap, myLeaves)
     };
   });
 
@@ -153,7 +157,12 @@ export function CalendarPage() {
                     c.date ? kindStyles[c.kind] : "opacity-0 pointer-events-none border-transparent",
                   )}
                 >
-                  {c.date && c.date.getDate()}
+                  {c.kind === "leave-approved" && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none">
+                      <X className="size-full max-w-10 max-h-10 text-red-600" strokeWidth={1} />
+                    </div>
+                  )}
+                  <span className="relative z-10">{c.date && c.date.getDate()}</span>
                 </button>
               ))}
             </div>

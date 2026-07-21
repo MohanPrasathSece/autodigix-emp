@@ -11,9 +11,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { notifications, employees } from "@/shared/lib/mock-data";
+import { useNotifications, useEmployees } from "@/shared/api/queries";
+import { useAuthStore } from "@/shared/store/auth";
 
 export function AppTopbar() {
+  const { data: notifications = [] } = useNotifications();
+  const { data: employees = [] } = useEmployees();
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const currentUser = employees.find((e: any) => e.id === user?.id) || employees[0];
   const [dark, setDark] = useState(false);
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -44,7 +50,7 @@ export function AppTopbar() {
               Notifications
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {notifications.map((n) => (
+            {notifications.map((n: any) => (
               <DropdownMenuItem key={n.id} className="flex flex-col items-start gap-1 rounded-lg px-3 py-2.5">
                 <div className="flex w-full items-center justify-between">
                   <span className="text-sm font-medium">{n.title}</span>
@@ -63,25 +69,28 @@ export function AppTopbar() {
         </DropdownMenu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="ml-1 grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 text-xs font-semibold text-white shadow-soft hover:opacity-90 transition-opacity overflow-hidden">
-              {employees[0]?.avatarUrl ? (
-                <img src={employees[0].avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+            <button className={`ml-1 grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br ${currentUser?.avatarColor || 'from-emerald-500 to-teal-500'} text-xs font-semibold text-white shadow-soft hover:opacity-90 transition-opacity overflow-hidden`}>
+              {currentUser?.avatarUrl ? (
+                <img src={currentUser.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                "AS"
+                currentUser?.initials || "AS"
               )}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 rounded-xl p-2 mt-1">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">Aarav Sharma</p>
-                <p className="text-xs leading-none text-muted-foreground">aarav@autodigix.com</p>
+                <p className="text-sm font-medium leading-none">{currentUser?.name || user?.name || "Loading..."}</p>
+                <p className="text-xs leading-none text-muted-foreground">{currentUser?.email || user?.email || ""}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
               className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-950 cursor-pointer rounded-lg" 
-              onClick={() => window.location.href = '/'}
+              onClick={() => {
+                logout();
+                window.location.href = '/';
+              }}
             >
               <LogOut className="mr-2 size-4" />
               <span>Log out</span>

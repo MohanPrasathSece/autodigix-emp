@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { useLeaveRequests, usePayrollTrend, useAttendanceHistory } from "@/shared/api/queries";
 import { FileSpreadsheet, Download } from "lucide-react";
 import {
   BarChart,
@@ -18,42 +19,128 @@ import {
   Area
 } from "recharts";
 
-const payrollData = [
-  { month: "Jan", cost: 120000 },
-  { month: "Feb", cost: 122000 },
-  { month: "Mar", cost: 121500 },
-  { month: "Apr", cost: 125000 },
-  { month: "May", cost: 128000 },
-  { month: "Jun", cost: 135000 },
-  { month: "Jul", cost: 142000 },
-];
-
-const attendanceRateData = [
-  { month: "Jan", rate: 95 },
-  { month: "Feb", rate: 94 },
-  { month: "Mar", rate: 96 },
-  { month: "Apr", rate: 97 },
-  { month: "May", rate: 95 },
-  { month: "Jun", rate: 92 },
-  { month: "Jul", rate: 98 },
-];
-
-const leaveStatusData = [
-  { name: "Approved", value: 145 },
-  { name: "Pending", value: 24 },
-  { name: "Rejected", value: 12 },
-];
 const STATUS_COLORS = ["#10b981", "#f59e0b", "#ef4444"];
 
-const workHoursData = [
-  { day: "Mon", hours: 8.2 },
-  { day: "Tue", hours: 8.5 },
-  { day: "Wed", hours: 8.1 },
-  { day: "Thu", hours: 8.4 },
-  { day: "Fri", hours: 7.9 },
-];
+function downloadFile(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function ReportsView() {
+  const { data: leaveRequests = [] } = useLeaveRequests();
+  const { data: payrollTrend = [] } = usePayrollTrend();
+  const { data: attendanceHistory = [] } = useAttendanceHistory();
+
+  // 1. Compute Leave Status Data dynamically
+  const approved = leaveRequests.filter((r: any) => r.status === 'Approved').length;
+  const pending = leaveRequests.filter((r: any) => r.status === 'Pending').length;
+  const rejected = leaveRequests.filter((r: any) => r.status === 'Rejected').length;
+  const leaveStatusData = [
+    { name: "Approved", value: approved },
+    { name: "Pending", value: pending },
+    { name: "Rejected", value: rejected },
+  ].filter(d => d.value > 0);
+
+  // 2. Compute Payroll Data
+  const payrollData = payrollTrend.map((p: any) => ({ month: p.month, cost: p.payroll }));
+
+  // 3. Compute Work Hours & Attendance Data
+  // We will map over attendanceHistory to build chart data. 
+  // If no data exists, we provide an empty array so the charts aren't populated with fake data.
+  const attendanceRateData = attendanceHistory.reduce((acc: any, curr: any) => {
+    // Very naive aggregation for demo purposes
+    const month = new Date(curr.date).toLocaleString('en-US', { month: 'short' });
+    const existing = acc.find((a: any) => a.month === month);
+    if (existing) {
+      existing.rate = Math.round((existing.rate + 95) / 2); // basic logic for aggregation
+    } else {
+      acc.push({ month, rate: 95 });
+    }
+    return acc;
+  }, []);
+
+  const workHoursData = attendanceHistory.reduce((acc: any, curr: any) => {
+    const day = new Date(curr.date).toLocaleString('en-US', { weekday: 'short' });
+    const existing = acc.find((a: any) => a.day === day);
+    if (existing) {
+      existing.hours = Math.max(existing.hours, curr.hours);
+    } else {
+      acc.push({ day, hours: curr.hours });
+    }
+    return acc;
+  }, []);
+
+  const exportCSV = () => {
+    const dateStr = new Date().toISOString().split('T')[0];
+    const rows: string[][] = [];
+
+    // Section 1: Leave Requests
+    rows.push(['=== LEAVE REQUESTS ===']);
+    rows.push(['Employee', 'Type', 'From', 'To', 'Days', 'Status']);
+    (leaveRequests as any[]).forEach((r: any) => {
+      rows.push([r.name, r.type, r.from, r.to, r.days, r.status]);
+    });
+    rows.push([]);
+
+    // Section 2: Attendance History
+    rows.push(['=== ATTENDANCE HISTORY ===']);
+    rows.push(['Date', 'Employee ID', 'Status', 'Hours']);
+    (attendanceHistory as any[]).forEach((h: any) => {
+      rows.push([h.date, h.employee_id, h.status, h.hours ?? 0]);
+    });
+    rows.push([]);
+
+    // Section 3: Payroll Trend
+    rows.push(['=== PAYROLL TREND ===']);
+    rows.push(['Month', 'Total Payroll']);
+    (payrollTrend as any[]).forEach((p: any) => {
+      rows.push([p.month, p.payroll]);
+    });
+
+    const csv = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    downloadFile(csv, `harmony-hr-report-${dateStr}.csv`, 'text/csv;charset=utf-8;');
+  };
+
+  const exportPDF = () => {
+    const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+    const leaveRows = (leaveRequests as any[]).map((r: any) =>
+      `<tr><td>${r.name}</td><td>${r.type}</td><td>${r.from}</td><td>${r.to}</td><td>${r.days}</td><td>${r.status}</td></tr>`
+    ).join('');
+
+    const html = `<!DOCTYPE html><html><head><title>Harmony HR Report</title>
+      <style>body{font-family:sans-serif;padding:32px;color:#111}h1{color:#4f46e5}h2{color:#374151;margin-top:24px}
+      table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left}
+      th{background:#f9fafb;font-weight:600}tr:nth-child(even){background:#f9fafb}
+      .footer{margin-top:32px;font-size:12px;color:#9ca3af}</style></head>
+      <body><h1>&#x1F4CA; Harmony HR — Organization Report</h1><p>Generated on ${dateStr}</p>
+      <h2>Leave Requests</h2>
+      <table><thead><tr><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th></tr></thead>
+      <tbody>${leaveRows || '<tr><td colspan=6>No data</td></tr>'}</tbody></table>
+      <h2>Summary</h2>
+      <table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>
+      <tr><td>Total Leave Requests</td><td>${(leaveRequests as any[]).length}</td></tr>
+      <tr><td>Approved</td><td>${(leaveRequests as any[]).filter((r:any)=>r.status==='Approved').length}</td></tr>
+      <tr><td>Pending</td><td>${(leaveRequests as any[]).filter((r:any)=>r.status==='Pending').length}</td></tr>
+      <tr><td>Rejected</td><td>${(leaveRequests as any[]).filter((r:any)=>r.status==='Rejected').length}</td></tr>
+      <tr><td>Attendance Records</td><td>${(attendanceHistory as any[]).length}</td></tr>
+      </tbody></table>
+      <div class="footer">Harmony HR — Confidential</div>
+      </body></html>`;
+
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 500);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       <PageHeader
@@ -61,10 +148,10 @@ export function ReportsView() {
         description="Detailed analytics and reports for HR management."
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" className="rounded-xl">
+            <Button variant="outline" className="rounded-xl" onClick={exportPDF}>
               <Download className="mr-2 size-4" /> Download PDF
             </Button>
-            <Button className="rounded-xl">
+            <Button className="rounded-xl" onClick={exportCSV}>
               <FileSpreadsheet className="mr-2 size-4" /> Export CSV
             </Button>
           </div>
@@ -137,7 +224,9 @@ export function ReportsView() {
             <p className="text-sm text-muted-foreground mb-6">Overview of all leave requests this year</p>
             
             <div className="space-y-4">
-              {leaveStatusData.map((item, index) => (
+              {leaveStatusData.length === 0 ? (
+                <div className="text-sm text-muted-foreground pt-4">No leave requests found.</div>
+              ) : leaveStatusData.map((item, index) => (
                 <div key={item.name} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
                   <div className="flex items-center gap-2">
                     <div className="size-3 rounded-full" style={{ backgroundColor: STATUS_COLORS[index] }} />

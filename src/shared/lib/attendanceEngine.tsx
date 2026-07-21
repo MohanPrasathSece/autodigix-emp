@@ -1,142 +1,133 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+// @refresh reset
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { toast } from "sonner";
+import { useAuthStore } from "@/shared/store/auth";
+import { useUpdateAttendance, useLogAttendance } from "@/shared/api/mutations";
 
 interface AttendanceContextType {
   isWorking: boolean;
   seconds: number;
   startWork: () => void;
   stopWork: () => void;
-  paidLeaves: number;
 }
 
 const AttendanceContext = createContext<AttendanceContextType | undefined>(undefined);
 
+const KEYS = {
+  IS_WORKING: "autodigix_is_working",
+  CLOCK_IN_AT: "autodigix_clock_in_at",       // timestamp (ms) when last clock-in happened
+  ACCUMULATED: "autodigix_accumulated_secs",  // seconds accumulated in prior sessions today
+  TIMER_DATE: "autodigix_timer_date",
+  LAST_CHECK: "autodigix_last_check",
+};
+
+function getTodayStr() {
+  return new Date().toDateString();
+}
+
+/** Compute total seconds for today based on stored state */
+function computeSeconds(): number {
+  const accumulated = parseInt(localStorage.getItem(KEYS.ACCUMULATED) || "0", 10);
+  const clockInAt = localStorage.getItem(KEYS.CLOCK_IN_AT);
+  const isWorking = localStorage.getItem(KEYS.IS_WORKING) === "true";
+
+  if (isWorking && clockInAt) {
+    const elapsed = Math.floor((Date.now() - parseInt(clockInAt, 10)) / 1000);
+    return accumulated + elapsed;
+  }
+  return accumulated;
+}
+
 export function AttendanceProvider({ children }: { children: ReactNode }) {
-  const [isWorking, setIsWorking] = useState(() => localStorage.getItem("autodigix_is_working") === "true");
-  
-  const [seconds, setSeconds] = useState(() => {
-    const todayStr = new Date().toDateString();
-    const savedDate = localStorage.getItem("autodigix_timer_date");
-    if (savedDate === todayStr) {
-      return parseInt(localStorage.getItem("autodigix_today_seconds") || "0", 10);
-    }
-    return 0;
-  });
+  const [isWorking, setIsWorking] = useState(() => localStorage.getItem(KEYS.IS_WORKING) === "true");
+  const [seconds, setSeconds] = useState(() => computeSeconds());
 
-  const [paidLeaves, setPaidLeaves] = useState(() => {
-    const saved = localStorage.getItem("autodigix_paid_leaves");
-    return saved !== null ? parseFloat(saved) : 2; // Default to 2 leaves
-  });
+  const { user } = useAuthStore();
+  const updateAttendanceMutation = useUpdateAttendance();
+  const logAttendanceMutation = useLogAttendance();
 
-  // Evaluate previous day on mount
+  // ── New-day reset ────────────────────────────────────────────────────────────
   useEffect(() => {
-    const lastCheck = localStorage.getItem("autodigix_last_check");
-    const todayStr = new Date().toDateString();
-    
+    const todayStr = getTodayStr();
+    const lastCheck = localStorage.getItem(KEYS.LAST_CHECK);
+
     if (lastCheck !== todayStr) {
-      // It's a new day! Evaluate yesterday.
-      const yesterdayDataStr = localStorage.getItem("autodigix_yesterday_data");
-      const yesterdayDate = new Date();
-      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-      
-      const isWeekday = yesterdayDate.getDay() !== 0 && yesterdayDate.getDay() !== 6;
-      
-      if (isWeekday && yesterdayDataStr) {
-        const yesterdayHours = parseFloat(yesterdayDataStr);
-        // Standard day is 9 hours. Half day threshold is 4.5
-        if (yesterdayHours < 4.5) {
-          setPaidLeaves(prev => {
-            const newLeaves = Math.max(0, prev - 0.5);
-            localStorage.setItem("autodigix_paid_leaves", newLeaves.toString());
-            // Small delay to ensure toaster is mounted
-            setTimeout(() => {
-              toast.warning("Half Day Deducted", {
-                description: "You worked less than 4.5 hours yesterday. 0.5 paid leaves have been deducted.",
-              });
-            }, 1000);
-            return newLeaves;
-          });
-        }
-      }
-      
-      // Check for month rollover
-      const currentMonth = new Date().getMonth().toString();
-      const lastMonth = localStorage.getItem("autodigix_last_month");
-      
-      if (lastMonth !== null && lastMonth !== currentMonth) {
-        setPaidLeaves(prev => {
-          const newLeaves = Math.min(6, prev + 2);
-          localStorage.setItem("autodigix_paid_leaves", newLeaves.toString());
-          setTimeout(() => {
-            toast.success("Leave Balance Updated", {
-              description: `2 paid leaves added for the new month. Your balance is now ${newLeaves}.`,
-            });
-          }, 1000);
-          return newLeaves;
-        });
-      }
-      localStorage.setItem("autodigix_last_month", currentMonth);
-      
-      // Reset for today
-      localStorage.setItem("autodigix_yesterday_data", "0");
-      localStorage.setItem("autodigix_last_check", todayStr);
-      localStorage.setItem("autodigix_timer_date", todayStr);
-      localStorage.setItem("autodigix_today_seconds", "0");
+      // New day: reset everything
+      localStorage.setItem(KEYS.LAST_CHECK, todayStr);
+      localStorage.setItem(KEYS.TIMER_DATE, todayStr);
+      localStorage.setItem(KEYS.ACCUMULATED, "0");
+      localStorage.removeItem(KEYS.CLOCK_IN_AT);
+      localStorage.setItem(KEYS.IS_WORKING, "false");
       setSeconds(0);
       setIsWorking(false);
-      localStorage.setItem("autodigix_is_working", "false");
     }
   }, []);
 
-  // Timer logic
+  // ── Tick every second (just re-reads the real elapsed time) ─────────────────
   useEffect(() => {
-    let interval: any;
-    if (isWorking) {
-      interval = setInterval(() => {
-        setSeconds(s => {
-          const newS = s + 1;
-          localStorage.setItem("autodigix_today_seconds", newS.toString());
-          return newS;
-        });
-      }, 1000);
-    }
+    if (!isWorking) return;
+
+    const interval = setInterval(() => {
+      setSeconds(computeSeconds());
+    }, 1000);
+
     return () => clearInterval(interval);
   }, [isWorking]);
 
-  // System time polling for auto-close at 19:00 (7 PM)
+  // ── Auto clock-out at 19:00 ──────────────────────────────────────────────────
   useEffect(() => {
+    if (!isWorking) return;
+
     const timePoller = setInterval(() => {
       const now = new Date();
-      if (isWorking && now.getHours() >= 19) {
-        // Stop work
-        setIsWorking(false);
-        localStorage.setItem("autodigix_is_working", "false");
-        const hoursWorked = seconds / 3600;
-        localStorage.setItem("autodigix_yesterday_data", hoursWorked.toString());
+      if (now.getHours() >= 19) {
+        stopWork();
         toast.info("Auto Clocked-Out", {
           description: "It is 7:00 PM. Your shift has been automatically closed.",
         });
       }
-    }, 10000); // Check every 10 seconds
-    
+    }, 10000);
+
     return () => clearInterval(timePoller);
-  }, [isWorking, seconds]);
+  }, [isWorking]);
 
   const startWork = () => {
+    // Snapshot accumulated seconds so far today, then record new clock-in time
+    const currentAccumulated = computeSeconds();
+    localStorage.setItem(KEYS.ACCUMULATED, currentAccumulated.toString());
+    localStorage.setItem(KEYS.CLOCK_IN_AT, Date.now().toString());
+    localStorage.setItem(KEYS.IS_WORKING, "true");
     setIsWorking(true);
-    localStorage.setItem("autodigix_is_working", "true");
+
+    if (user?.id) {
+      updateAttendanceMutation.mutate({ id: user.id, newAttendance: 100 });
+      logAttendanceMutation.mutate({ employee_id: user.id, action: 'Clock In' });
+      toast.success("Clocked In", { description: "Your attendance has been logged in the system." });
+    }
   };
-  
+
   const stopWork = () => {
+    // Snapshot the final total seconds and clear the running clock-in marker
+    const finalSeconds = computeSeconds();
+    localStorage.setItem(KEYS.ACCUMULATED, finalSeconds.toString());
+    localStorage.removeItem(KEYS.CLOCK_IN_AT);
+    localStorage.setItem(KEYS.IS_WORKING, "false");
     setIsWorking(false);
-    localStorage.setItem("autodigix_is_working", "false");
-    const hoursWorked = seconds / 3600;
-    // Save current hours to yesterday_data (we overwrite it through the day)
-    localStorage.setItem("autodigix_yesterday_data", hoursWorked.toString());
+    setSeconds(finalSeconds);
+
+    const hoursWorked = finalSeconds / 3600;
+
+    if (user?.id) {
+      logAttendanceMutation.mutate({ employee_id: user.id, action: 'Clock Out', hours: hoursWorked });
+      if (hoursWorked < 4) {
+        updateAttendanceMutation.mutate({ id: user.id, newAttendance: 50 });
+      }
+    }
+    toast.success("Clocked Out", { description: "Your shift has ended." });
   };
 
   return (
-    <AttendanceContext.Provider value={{ isWorking, seconds, startWork, stopWork, paidLeaves }}>
+    <AttendanceContext.Provider value={{ isWorking, seconds, startWork, stopWork }}>
       {children}
     </AttendanceContext.Provider>
   );

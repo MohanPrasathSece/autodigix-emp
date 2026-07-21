@@ -1,4 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const queryClient = new QueryClient();
 
 // Layouts
 import { AdminLayout } from "@/shared/layouts/AdminLayout";
@@ -6,6 +9,9 @@ import { EmployeeLayout } from "@/shared/layouts/EmployeeLayout";
 
 // Public Views
 import { LandingView } from "@/public/views/LandingView";
+
+// Components
+import { CommandPalette } from "@/components/CommandPalette";
 
 // Admin Views
 import { AdminDashboardView } from "@/admin/views/DashboardView";
@@ -33,8 +39,10 @@ import { CalendarPage as EmployeeCalendarPage } from "@/employee/views/CalendarV
 
 export function App() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <CommandPalette />
+        <Routes>
         <Route path="/" element={<LandingView />} />
 
         {/* Admin Routes */}
@@ -71,5 +79,6 @@ export function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </QueryClientProvider>
   );
 }

@@ -14,16 +14,23 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Progress } from "@/components/ui/progress";
-import { holidays, notifications } from "@/lib/mock-data";
-import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-
-
-
-
+import { useHolidays, useNotifications, useLeaveRequests } from "@/shared/api/queries";
+import { useAuthStore } from "@/shared/store/auth";
+import { useNavigate } from "react-router-dom";
 
 export function EmployeeDashboard() {
-  const { isWorking, seconds, startWork, stopWork, paidLeaves } = useAttendance();
+  const { isWorking, seconds, startWork, stopWork } = useAttendance();
+  const { data: holidays = [] } = useHolidays();
+  const { data: notifications = [] } = useNotifications();
+  const { data: leaveRequests = [] } = useLeaveRequests();
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+
+  // Dynamically calculate the user's leaves taken
+  const myLeaves = leaveRequests.filter((l: any) => l.employee_id === user?.id && l.status === "Approved");
+  const leavesTaken = myLeaves.reduce((sum: number, l: any) => sum + l.days, 0);
+  const totalLeaves = 24; // Standardized total leaves available per year
+  const leavesRemaining = totalLeaves - leavesTaken;
 
   const formatTime = (totalSeconds: number) => {
     const h = Math.floor(totalSeconds / 3600);
@@ -35,54 +42,58 @@ export function EmployeeDashboard() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Good morning, Aarav"
+        title={`Good morning, ${user?.name ? user.name.split(" ")[0] : "Employee"}`}
         description="Here's a calm overview of your day at Autodigix."
-        actions={
-          <div className="flex items-center gap-3">
-            {isWorking && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-600 dark:text-green-400 rounded-lg font-mono text-sm font-medium">
-                <Clock className="size-4 animate-pulse" />
-                {formatTime(seconds)}
-              </div>
-            )}
-            
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button 
-                  variant={isWorking ? "destructive" : "default"} 
-                  className="rounded-xl transition-all min-w-[120px]"
-                >
-                  <Clock className="mr-1.5 size-4" /> 
-                  {isWorking ? "Stop Work" : "Start Work"}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="rounded-xl">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {isWorking 
-                      ? "You are about to stop your work timer. You can resume it later today, but your active tracking will pause."
-                      : "You are about to start your work timer. Your daily hours will be tracked."}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel className="rounded-lg">Cancel</AlertDialogCancel>
-                  <AlertDialogAction 
-                    className="rounded-lg"
-                    onClick={isWorking ? stopWork : startWork}
-                  >
-                    Confirm
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        }
       />
 
+      <div className="rounded-2xl border bg-card p-6 shadow-soft flex flex-col items-center justify-center text-center space-y-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+        
+        <div className="z-10 space-y-1">
+          <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Current Session</h2>
+          <div className="font-mono text-4xl sm:text-5xl font-black tracking-tight tabular-nums text-primary">
+            {formatTime(seconds)}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">{isWorking ? "You are currently clocked in and tracking time." : "You are currently clocked out."}</p>
+        </div>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button 
+              size="default"
+              variant={isWorking ? "destructive" : "default"} 
+              className="z-10 rounded-xl px-8 shadow-sm hover:scale-105 transition-all mt-2"
+            >
+              <Clock className="mr-2 size-4" /> 
+              {isWorking ? "Stop Work" : "Start Work"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="rounded-xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {isWorking 
+                  ? "You are about to stop your work timer. You can resume it later today, but your active tracking will pause."
+                  : "You are about to start your work timer. Your daily hours will be tracked."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-lg">Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                className="rounded-lg"
+                onClick={isWorking ? stopWork : startWork}
+              >
+                Confirm
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
-        <StatCard label="Attendance" value="96%" icon={CalendarCheck} hint="Last 30 days" />
-        <StatCard label="Leaves Available" value={`${6 - paidLeaves} days`} icon={PlaneTakeoff} hint="Remaining of 6 days" />
+        {/* Mocked Attendance score since it's difficult to calculate without historical daily clock-in records */}
+        <StatCard label="Attendance" value={`${(user as any)?.attendance || 100}%`} icon={CalendarCheck} hint="Your overall attendance score" />
+        <StatCard label="Leaves Available" value={`${leavesRemaining} days`} icon={PlaneTakeoff} hint={`Remaining of ${totalLeaves} days`} />
       </div>
 
       <div className="grid gap-6">
@@ -95,17 +106,21 @@ export function EmployeeDashboard() {
             <span className="text-xs text-muted-foreground">Next 60 days</span>
           </div>
           <ul className="divide-y">
-            {holidays.map((h) => (
-              <li key={h.name} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                <div>
-                  <div className="text-sm font-medium">{h.name}</div>
-                  <div className="text-xs text-muted-foreground">{h.date}</div>
-                </div>
-                <div className="rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                  Public
-                </div>
-              </li>
-            ))}
+            {holidays.length === 0 ? (
+               <div className="py-4 text-center text-sm text-muted-foreground">No upcoming holidays.</div>
+            ) : (
+              holidays.map((h: any) => (
+                <li key={h.name} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                  <div>
+                    <div className="text-sm font-medium">{h.name}</div>
+                    <div className="text-xs text-muted-foreground">{h.date}</div>
+                  </div>
+                  <div className="rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                    Public
+                  </div>
+                </li>
+              ))
+            )}
           </ul>
         </div>
 
@@ -117,15 +132,19 @@ export function EmployeeDashboard() {
             </Button>
           </div>
           <ul className="space-y-3">
-            {notifications.map((n) => (
-              <li key={n.id} className="rounded-xl border bg-background/60 p-3 transition-colors hover:bg-muted/40">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{n.title}</span>
-                  <span className="text-[11px] text-muted-foreground">{n.time}</span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{n.body}</p>
-              </li>
-            ))}
+            {notifications.length === 0 ? (
+               <div className="p-4 text-center text-sm text-muted-foreground">No notifications.</div>
+            ) : (
+              notifications.map((n: any) => (
+                <li key={n.id} className="rounded-xl border bg-background/60 p-3 transition-colors hover:bg-muted/40">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{n.title}</span>
+                    <span className="text-[11px] text-muted-foreground">{n.time}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{n.body}</p>
+                </li>
+              ))
+            )}
           </ul>
         </div>
 
@@ -134,12 +153,12 @@ export function EmployeeDashboard() {
           <p className="text-xs text-muted-foreground">Shortcuts for the most-used tasks</p>
           <div className="mt-4 grid grid-cols-2 gap-3">
             {[
-              { icon: PlaneTakeoff, label: "Apply leave" },
-              { icon: FileText, label: "Payslip" },
-              { icon: CalendarCheck, label: "Attendance" },
-            ].map((a) => (
+              { icon: PlaneTakeoff, label: "Apply leave", path: "/employee/apply-leave" },
+              { icon: FileText, label: "Payslip", path: "/employee/payslips" },
+            ].map((a: any) => (
               <button
                 key={a.label}
+                onClick={() => navigate(a.path)}
                 className="group flex flex-col items-start gap-2 rounded-xl border bg-background p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-soft"
               >
                 <div className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">

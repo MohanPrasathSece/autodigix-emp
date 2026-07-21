@@ -5,13 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { leaveRequests } from "@/lib/mock-data";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@radix-ui/react-hover-card";
+import { useLeaveRequests, useEmployees } from "@/shared/api/queries";
+import { useUpdateLeaveRequestStatus } from "@/shared/api/mutations";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type LeaveRequest = typeof leaveRequests[0];
+type LeaveRequest = any; // Fallback since we are fetching dynamically
 
 export function ApprovalsPage() {
+  const { data: leaveRequests = [], isLoading } = useLeaveRequests();
+  const { data: employees = [] } = useEmployees();
+  const updateStatus = useUpdateLeaveRequestStatus();
   const [filter, setFilter] = useState<"all" | "Pending" | "Approved" | "Rejected">("Pending");
   
   // State for the detailed view modal
@@ -20,18 +25,45 @@ export function ApprovalsPage() {
   // State for the confirmation step inside the detailed modal
   const [confirmAction, setConfirmAction] = useState<"Approve" | "Decline" | null>(null);
 
-  const rows = leaveRequests.filter((r) => (filter === "all" ? true : r.status === filter));
+  const rows = leaveRequests.filter((r: any) => (filter === "all" ? true : r.status === filter));
 
   const handleConfirm = () => {
     if (!selectedRequest || !confirmAction) return;
-    if (confirmAction === "Approve") {
-      toast.success(`Approved ${selectedRequest.name}'s request`);
-    } else {
-      toast.error(`Declined ${selectedRequest.name}'s request`);
-    }
-    setConfirmAction(null);
-    setSelectedRequest(null);
+    const newStatus = confirmAction === "Approve" ? "Approved" : "Rejected";
+    updateStatus.mutate(
+      { id: selectedRequest.id, status: newStatus },
+      {
+        onSuccess: () => {
+          toast.success(`${confirmAction === "Approve" ? "Approved" : "Declined"} ${selectedRequest.name}'s request`);
+          setConfirmAction(null);
+          setSelectedRequest(null);
+        }
+      }
+    );
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-24 bg-muted rounded-2xl" />
+        <div className="h-10 bg-muted rounded-xl w-64" />
+        <div className="rounded-2xl border bg-card overflow-hidden">
+          <div className="divide-y">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+                <div className="size-11 rounded-full bg-muted/60 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-muted/60 rounded-md w-1/4" />
+                  <div className="h-3 bg-muted/60 rounded-md w-1/3" />
+                </div>
+                <div className="h-6 bg-muted/60 rounded-full w-20" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
@@ -54,18 +86,42 @@ export function ApprovalsPage() {
 
       <div className="rounded-2xl border bg-card shadow-soft overflow-hidden">
         <div className="divide-y">
-          {rows.map((r) => (
+          {rows.map((r: any) => (
             <div 
               key={r.id} 
               className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center cursor-pointer"
               onClick={() => setSelectedRequest(r)}
             >
-              <div className="grid size-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-sm font-semibold text-white shadow-soft">
-                {r.name.split(" ").map(n => n[0]).join("")}
+              <div className="grid size-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-sm font-semibold text-white shadow-soft overflow-hidden border">
+                {r.avatarUrl || r.avatar_url ? (
+                  <img src={r.avatarUrl || r.avatar_url} className="w-full h-full object-cover" alt={r.name} />
+                ) : (
+                  r.name.split(" ").map((n: string) => n[0]).join("")
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold">{r.name}</span>
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <span className="text-sm font-semibold hover:underline cursor-help">{r.name}</span>
+                    </HoverCardTrigger>
+                    <HoverCardContent side="top" className="w-64 rounded-xl border bg-card p-4 shadow-xl z-50 animate-in fade-in-0 zoom-in-95">
+                      <div className="flex justify-between space-x-4">
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-semibold">{r.name}</h4>
+                          <p className="text-xs text-muted-foreground">
+                            {employees.find((e: any) => e.id === r.employee_id)?.role || "Employee"} · {employees.find((e: any) => e.id === r.employee_id)?.department || "General"}
+                          </p>
+                          <div className="flex items-center pt-2">
+                            <span className="text-xs text-muted-foreground flex items-center">
+                              <span className="mr-1 size-2 rounded-full bg-emerald-500 inline-block"></span>
+                              Active Now
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
                   <span className="text-xs text-muted-foreground">requested</span>
                   <span className="text-sm font-medium">{r.type}</span>
                 </div>
@@ -111,7 +167,7 @@ export function ApprovalsPage() {
               <div className="p-6 bg-muted/10 border-b">
                 <div className="flex items-center gap-4">
                   <div className="grid size-14 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-lg font-bold text-white shadow-soft">
-                    {selectedRequest.name.split(" ").map(n => n[0]).join("")}
+                    {selectedRequest.name.split(" ").map((n: string) => n[0]).join("")}
                   </div>
                   <div>
                     <h2 className="text-xl font-bold">{selectedRequest.name}</h2>

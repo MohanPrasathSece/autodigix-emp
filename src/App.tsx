@@ -29,6 +29,7 @@ import { AdminProfileView } from "@/admin/views/ProfileView";
 import { AdminHolidaysView } from "@/admin/views/HolidaysView";
 import { AdminDashboard } from "@/admin/views/OverviewView";
 import { PayrollPage } from "@/admin/views/PayrollView";
+import { ContactMessagesView } from "@/admin/views/ContactMessagesView";
 
 // Employee Views
 import { EmployeeDashboard } from "@/employee/views/DashboardView";
@@ -64,6 +65,7 @@ export function App() {
           <Route path="holidays" element={<AdminHolidaysView />} />
           <Route path="overview" element={<AdminDashboard />} />
           <Route path="payroll" element={<PayrollPage />} />
+          <Route path="messages" element={<ContactMessagesView />} />
         </Route>
 
         {/* Employee Routes */}

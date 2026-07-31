@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { format, isWeekend, eachDayOfInterval } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -42,15 +44,22 @@ export function LeavePage() {
   const [leaveType, setLeaveType] = useState("paid");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
+  const [isHalfDay, setIsHalfDay] = useState(false);
+  const [halfDaySession, setHalfDaySession] = useState("Morning");
 
   // Calculate actual business days (ignoring weekends)
   const businessDays = useMemo(() => {
     if (!range.from) return 0;
+    
+    if (isHalfDay) {
+      return isWeekend(range.from) ? 0 : 0.5;
+    }
+    
     if (!range.to) return isWeekend(range.from) ? 0 : 1;
     
     const days = eachDayOfInterval({ start: range.from, end: range.to });
     return days.filter(d => !isWeekend(d)).length;
-  }, [range]);
+  }, [range, isHalfDay]);
 
   // Validation Rules
   const maxContinuousExceeded = leaveType === "paid" && businessDays >= 6;
@@ -81,10 +90,10 @@ export function LeavePage() {
         name: user.name,
         type: displayType,
         from_date: format(range.from!, "MMM dd"),
-        to_date: range.to ? format(range.to, "MMM dd") : format(range.from!, "MMM dd"),
+        to_date: isHalfDay ? format(range.from!, "MMM dd") : (range.to ? format(range.to, "MMM dd") : format(range.from!, "MMM dd")),
         days: businessDays,
         status: "Pending",
-        subject: subject,
+        subject: isHalfDay ? `${subject} (Half Day - ${halfDaySession})` : subject,
         description: description
       },
       {
@@ -96,6 +105,8 @@ export function LeavePage() {
           setRange({});
           setSubject("");
           setDescription("");
+          setIsHalfDay(false);
+          setHalfDaySession("Morning");
         }
       }
     );
@@ -128,6 +139,34 @@ export function LeavePage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="flex items-center space-x-2 py-1 border-y border-border/40 my-2">
+                  <Switch 
+                    id="half-day" 
+                    checked={isHalfDay} 
+                    onCheckedChange={(checked) => {
+                       setIsHalfDay(checked);
+                       if (checked && range.from) {
+                         setRange({ from: range.from });
+                       }
+                    }} 
+                  />
+                  <Label htmlFor="half-day" className="text-sm font-medium">Half Day</Label>
+                </div>
+                
+                {isHalfDay && (
+                  <div className="space-y-1.5 animate-in slide-in-from-top-1 fade-in duration-200">
+                    <label className="text-xs font-medium text-muted-foreground">Session</label>
+                    <Select value={halfDaySession} onValueChange={setHalfDaySession}>
+                      <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Morning">Morning</SelectItem>
+                        <SelectItem value="Afternoon">Afternoon</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Dates</label>
                   <Popover>
@@ -139,9 +178,9 @@ export function LeavePage() {
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
                       <Calendar 
-                        mode="range" 
+                        mode={isHalfDay ? "single" : "range"} 
                         selected={range as any} 
-                        onSelect={(v: any) => setRange(v || {})} 
+                        onSelect={(v: any) => setRange(isHalfDay ? { from: v } : (v || {}))} 
                         numberOfMonths={1} 
                         className="p-3 pointer-events-auto"
                         disabled={(date) => isWeekend(date)} // Gray out weekends entirely

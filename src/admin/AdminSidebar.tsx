@@ -14,6 +14,7 @@ import {
   Sun,
   ClipboardList,
   LogOut,
+  MessageSquare,
 } from "lucide-react";
 import {
   Sidebar,
@@ -38,6 +39,7 @@ const primary = [
 const secondary = [
   { title: "Calendar", url: "/admin/calendar", icon: CalendarDays },
   { title: "Reports", url: "/admin/reports", icon: BarChart3 },
+  { title: "Messages", url: "/admin/messages", icon: MessageSquare },
 ];
 
 const account = [

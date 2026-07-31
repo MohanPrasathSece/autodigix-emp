@@ -1,133 +1,124 @@
 // @refresh reset
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/shared/store/auth";
 import { useUpdateAttendance, useLogAttendance } from "@/shared/api/mutations";
+import { supabase } from "@/lib/supabaseClient";
 
 interface AttendanceContextType {
   isWorking: boolean;
   seconds: number;
   startWork: () => void;
   stopWork: () => void;
+  isLoading: boolean;
 }
 
 const AttendanceContext = createContext<AttendanceContextType | undefined>(undefined);
 
-const KEYS = {
-  IS_WORKING: "autodigix_is_working",
-  CLOCK_IN_AT: "autodigix_clock_in_at",       // timestamp (ms) when last clock-in happened
-  ACCUMULATED: "autodigix_accumulated_secs",  // seconds accumulated in prior sessions today
-  TIMER_DATE: "autodigix_timer_date",
-  LAST_CHECK: "autodigix_last_check",
-};
-
-function getTodayStr() {
-  return new Date().toDateString();
-}
-
-/** Compute total seconds for today based on stored state */
-function computeSeconds(): number {
-  const accumulated = parseInt(localStorage.getItem(KEYS.ACCUMULATED) || "0", 10);
-  const clockInAt = localStorage.getItem(KEYS.CLOCK_IN_AT);
-  const isWorking = localStorage.getItem(KEYS.IS_WORKING) === "true";
-
-  if (isWorking && clockInAt) {
-    const elapsed = Math.floor((Date.now() - parseInt(clockInAt, 10)) / 1000);
-    return accumulated + elapsed;
-  }
-  return accumulated;
-}
-
 export function AttendanceProvider({ children }: { children: ReactNode }) {
-  const [isWorking, setIsWorking] = useState(() => localStorage.getItem(KEYS.IS_WORKING) === "true");
-  const [seconds, setSeconds] = useState(() => computeSeconds());
+  const [isWorking, setIsWorking] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [clockInTime, setClockInTime] = useState<number | null>(null);
 
   const { user } = useAuthStore();
   const updateAttendanceMutation = useUpdateAttendance();
   const logAttendanceMutation = useLogAttendance();
 
-  // ── New-day reset ────────────────────────────────────────────────────────────
+  // Load state from DB on mount
   useEffect(() => {
-    const todayStr = getTodayStr();
-    const lastCheck = localStorage.getItem(KEYS.LAST_CHECK);
+    async function loadAttendance() {
+      if (!user?.id) {
+        setIsLoading(false);
+        return;
+      }
+      
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('attendance_history')
+        .select('*')
+        .eq('employee_id', user.id)
+        .eq('date', today)
+        .maybeSingle();
 
-    if (lastCheck !== todayStr) {
-      // New day: reset everything
-      localStorage.setItem(KEYS.LAST_CHECK, todayStr);
-      localStorage.setItem(KEYS.TIMER_DATE, todayStr);
-      localStorage.setItem(KEYS.ACCUMULATED, "0");
-      localStorage.removeItem(KEYS.CLOCK_IN_AT);
-      localStorage.setItem(KEYS.IS_WORKING, "false");
-      setSeconds(0);
-      setIsWorking(false);
+      if (error) {
+        console.error("Failed to load attendance", error);
+      }
+
+      if (data) {
+        if (data.clock_out_time) {
+          // Already clocked out
+          setSeconds(Math.floor(data.hours * 3600));
+          setIsWorking(false);
+        } else if (data.clock_in_time) {
+          // Currently clocked in
+          setIsWorking(true);
+          setClockInTime(new Date(data.clock_in_time).getTime());
+        }
+      } else {
+        // No record today
+        setSeconds(0);
+        setIsWorking(false);
+      }
+      setIsLoading(false);
     }
-  }, []);
+    
+    loadAttendance();
+  }, [user]);
 
-  // ── Tick every second (just re-reads the real elapsed time) ─────────────────
+  // Tick every second if working
   useEffect(() => {
-    if (!isWorking) return;
+    if (!isWorking || !clockInTime) return;
 
     const interval = setInterval(() => {
-      setSeconds(computeSeconds());
+      setSeconds(Math.floor((Date.now() - clockInTime) / 1000));
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isWorking]);
+  }, [isWorking, clockInTime]);
 
-  // ── Auto clock-out at 19:00 ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isWorking) return;
-
-    const timePoller = setInterval(() => {
-      const now = new Date();
-      if (now.getHours() >= 19) {
-        stopWork();
-        toast.info("Auto Clocked-Out", {
-          description: "It is 7:00 PM. Your shift has been automatically closed.",
-        });
-      }
-    }, 10000);
-
-    return () => clearInterval(timePoller);
-  }, [isWorking]);
-
-  const startWork = () => {
-    // Snapshot accumulated seconds so far today, then record new clock-in time
-    const currentAccumulated = computeSeconds();
-    localStorage.setItem(KEYS.ACCUMULATED, currentAccumulated.toString());
-    localStorage.setItem(KEYS.CLOCK_IN_AT, Date.now().toString());
-    localStorage.setItem(KEYS.IS_WORKING, "true");
+  const startWork = async () => {
+    if (!user?.id) return;
+    
+    const now = Date.now();
+    setClockInTime(now);
     setIsWorking(true);
-
-    if (user?.id) {
-      updateAttendanceMutation.mutate({ id: user.id, newAttendance: 100 });
-      logAttendanceMutation.mutate({ employee_id: user.id, action: 'Clock In' });
+    
+    try {
+      await logAttendanceMutation.mutateAsync({ employee_id: user.id, action: 'Clock In' });
+      await updateAttendanceMutation.mutateAsync({ id: user.id, newAttendance: 100 });
       toast.success("Clocked In", { description: "Your attendance has been logged in the system." });
+    } catch (e: any) {
+      toast.error(e.message || "Failed to clock in");
+      setIsWorking(false);
+      setClockInTime(null);
     }
   };
 
-  const stopWork = () => {
-    // Snapshot the final total seconds and clear the running clock-in marker
-    const finalSeconds = computeSeconds();
-    localStorage.setItem(KEYS.ACCUMULATED, finalSeconds.toString());
-    localStorage.removeItem(KEYS.CLOCK_IN_AT);
-    localStorage.setItem(KEYS.IS_WORKING, "false");
+  const stopWork = async () => {
+    if (!user?.id || !clockInTime) return;
+
+    const finalSeconds = Math.floor((Date.now() - clockInTime) / 1000);
+    const hoursWorked = finalSeconds / 3600;
+    
     setIsWorking(false);
     setSeconds(finalSeconds);
 
-    const hoursWorked = finalSeconds / 3600;
-
-    if (user?.id) {
-      logAttendanceMutation.mutate({ employee_id: user.id, action: 'Clock Out', hours: hoursWorked });
+    try {
+      await logAttendanceMutation.mutateAsync({ employee_id: user.id, action: 'Clock Out', hours: hoursWorked });
       if (hoursWorked < 4) {
-        updateAttendanceMutation.mutate({ id: user.id, newAttendance: 50 });
+        await updateAttendanceMutation.mutateAsync({ id: user.id, newAttendance: 50 });
       }
+      toast.success("Clocked Out", { description: "Your shift has ended." });
+    } catch (e: any) {
+      toast.error(e.message || "Failed to clock out");
+      // Revert state if failed
+      setIsWorking(true);
     }
-    toast.success("Clocked Out", { description: "Your shift has ended." });
   };
 
   return (
-    <AttendanceContext.Provider value={{ isWorking, seconds, startWork, stopWork }}>
+    <AttendanceContext.Provider value={{ isWorking, seconds, startWork, stopWork, isLoading }}>
       {children}
     </AttendanceContext.Provider>
   );

@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS employees (
     phone TEXT,
     location TEXT,
     manager_id TEXT,
+    base_salary DECIMAL DEFAULT 60000,
+    leave_balance INTEGER DEFAULT 24,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -32,6 +34,12 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS password TEXT NOT NULL DEFAULT 'p
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS location TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS manager_id TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS base_salary DECIMAL DEFAULT 60000;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS leave_balance INTEGER DEFAULT 24;
+
+-- Note: Passwords in the database should be updated to their SHA-256 hashed equivalents.
+-- 'password123' -> 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f'
+-- 'admin123' -> '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9'
 
 -- ATTENDANCE HISTORY
 CREATE TABLE IF NOT EXISTS attendance_history (
@@ -40,12 +48,14 @@ CREATE TABLE IF NOT EXISTS attendance_history (
     employee_id TEXT REFERENCES employees(id) ON DELETE CASCADE,
     hours DECIMAL NOT NULL,
     status TEXT NOT NULL,
+    clock_in_time TIMESTAMP WITH TIME ZONE,
+    clock_out_time TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- SEED ADMIN USER
+-- SEED ADMIN USER (password: admin123 hashed)
 INSERT INTO employees (id, name, email, password, role, department, status, attendance, avatar_color, initials) 
-VALUES ('EMP-000', 'Super Admin', 'admin@company.com', 'admin123', 'Admin', 'Management', 'Active', 100, 'from-blue-500 to-indigo-500', 'SA')
+VALUES ('EMP-000', 'Super Admin', 'admin@company.com', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'Admin', 'Management', 'Active', 100, 'from-blue-500 to-indigo-500', 'SA')
 ON CONFLICT (email) DO NOTHING;
 
 -- ABSENT DATES
@@ -65,7 +75,7 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     type TEXT NOT NULL,
     from_date TEXT NOT NULL,
     to_date TEXT NOT NULL,
-    days INTEGER NOT NULL,
+    days DECIMAL(5,2) NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('Pending', 'Approved', 'Rejected')),
     subject TEXT,
     description TEXT,
@@ -95,13 +105,14 @@ CREATE TABLE IF NOT EXISTS holidays (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- NOTIFICATIONS
 CREATE TABLE IF NOT EXISTS notifications (
     id SERIAL PRIMARY KEY,
     title TEXT NOT NULL,
     body TEXT NOT NULL,
     time TEXT NOT NULL,
     tone TEXT NOT NULL CHECK (tone IN ('success', 'info', 'warning', 'error')),
+    target_id TEXT DEFAULT 'all',
+    is_read BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

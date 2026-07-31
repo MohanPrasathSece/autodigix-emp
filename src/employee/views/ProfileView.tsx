@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useEmployees, useLeaveRequests, usePayslips } from "@/shared/api/queries";
-import { useUpdateEmployee } from "@/shared/api/mutations";
+import { useUpdateEmployee, useChangePassword } from "@/shared/api/mutations";
 import { useAuthStore } from "@/shared/store/auth";
+import { hashPassword } from "@/shared/lib/hash";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ export function ProfilePage() {
   const employeeData = employees.find((e: any) => e.id === user?.id) || employees[0];
 
   const updateEmployee = useUpdateEmployee();
+  const changePassword = useChangePassword();
   const { data: leaveRequests = [] } = useLeaveRequests();
   const { data: payslips = [] } = usePayslips();
 
@@ -119,6 +121,21 @@ export function ProfilePage() {
 
   const handleCancel = () => {
     setIsEditing(false);
+  };
+
+  const [newPassword, setNewPassword] = useState("");
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters long.");
+      return;
+    }
+    const hashed = await hashPassword(newPassword);
+    if (user?.id) {
+      changePassword.mutate({ id: user.id, newPasswordHash: hashed }, {
+        onSuccess: () => setNewPassword("")
+      });
+    }
   };
 
   if (isLoading || !employeeData) {
@@ -356,6 +373,24 @@ export function ProfilePage() {
                 <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-xl text-center">No recent activity found.</div>
               )}
             </ol>
+          </div>
+
+          <div className="rounded-2xl border bg-card p-6 shadow-soft mt-6">
+            <h3 className="text-sm font-semibold mb-2 text-red-600">Security Settings</h3>
+            <p className="text-xs text-muted-foreground mb-4">Update your account password. For security, you will be logged out of other devices.</p>
+            <form onSubmit={handleChangePassword} className="flex gap-4 items-end max-w-sm">
+              <div className="space-y-2 flex-1">
+                <Input 
+                  type="password" 
+                  placeholder="New Password" 
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={changePassword.isPending}>
+                {changePassword.isPending ? "Updating..." : "Update Password"}
+              </Button>
+            </form>
           </div>
         </TabsContent>
       </Tabs>

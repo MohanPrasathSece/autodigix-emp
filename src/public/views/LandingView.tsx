@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { serverLog } from "@/shared/lib/logger";
+import { hashPassword } from "@/shared/lib/hash";
 
 export function LandingView() {
   const navigate = useNavigate();
@@ -52,9 +53,11 @@ export function LandingView() {
         return;
       }
 
-      if (data.password !== password) {
-        serverLog('Login Failed', { email, attemptedPassword: password, actualPassword: data.password }, 'error');
-        setLoginError(`Incorrect password! Hint: The actual password in the database is '${data.password}'`);
+      const hashedPassword = await hashPassword(password);
+
+      if (data.password !== hashedPassword && data.password !== password) {
+        serverLog('Login Failed', { email, attemptedPassword: password }, 'error');
+        setLoginError(`Incorrect password!`);
         setIsLoading(false);
         return;
       }

@@ -2,11 +2,21 @@ import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Clock, AlertCircle, Trash2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/shared/store/auth";
 
 import { useNotifications } from "@/shared/api/queries";
+import { useMarkNotificationRead } from "@/shared/api/mutations";
 
 export function AdminNotificationsView() {
-  const { data: notifications = [] } = useNotifications();
+  const { user } = useAuthStore();
+  const { data: notifications = [], isLoading } = useNotifications(user?.id);
+  const markAsRead = useMarkNotificationRead();
+
+  const handleMarkAllRead = () => {
+    notifications.forEach((n: any) => {
+      if (!n.is_read) markAsRead.mutate(n.id);
+    });
+  };
 
   // Filter logs to last 7 days only (auto-deletion policy)
   const recentLogs = notifications.filter((log: any) => {
@@ -30,7 +40,7 @@ export function AdminNotificationsView() {
         description="Detailed system activity and employee events. Logs are automatically deleted after 7 days."
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" className="rounded-xl">
+            <Button variant="outline" className="rounded-xl" onClick={handleMarkAllRead}>
               <CheckCircle2 className="mr-2 size-4" /> Mark all read
             </Button>
             <Button variant="outline" className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 border-red-200 dark:border-red-900/50">
@@ -64,7 +74,11 @@ export function AdminNotificationsView() {
               </div>
               <div className="divide-y">
                 {logsForDay.map((log: any) => (
-                  <div key={log.id} className="p-5 flex items-start gap-4 hover:bg-muted/10 transition-colors">
+                  <div 
+                    key={log.id} 
+                    className={`p-5 flex items-start gap-4 hover:bg-muted/10 transition-colors cursor-pointer ${!log.is_read ? 'bg-primary/5' : ''}`}
+                    onClick={() => { if (!log.is_read) markAsRead.mutate(log.id); }}
+                  >
                     <div className={`mt-1 size-2.5 shrink-0 rounded-full ${
                       log.tone === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 
                       log.tone === 'warning' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 

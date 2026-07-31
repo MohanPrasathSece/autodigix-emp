@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useNotifications, useHolidays, useLeaveRequests, useEmployees } from "@/shared/api/queries";
+import { useAuthStore } from "@/shared/store/auth";
 
 type DayKind = "govt-holiday" | "weekend" | "none";
 
@@ -80,7 +81,8 @@ export function CalendarPage() {
   const [baseDate, setBaseDate] = useState(new Date()); // Starts current month
   const [selectedDay, setSelectedDay] = useState<{ date: Date; kind: DayKind; note: string; leaves?: any[] } | null>(null);
 
-  const { data: notifications = [] } = useNotifications();
+  const { user } = useAuthStore();
+  const { data: notifications = [] } = useNotifications(user?.id);
   const { data: holidays = [] } = useHolidays();
   const { data: leaveRequests = [] } = useLeaveRequests();
   const { data: employees = [] } = useEmployees();

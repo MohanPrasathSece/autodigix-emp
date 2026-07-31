@@ -6,7 +6,8 @@ import confetti from 'canvas-confetti';
 
 const sendEmail = async (to: string, subject: string, text: string) => {
   try {
-    await fetch('http://localhost:3001/api/send-email', {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    await fetch(`${apiUrl}/api/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to, subject, text, html: `<p>${text}</p>` }),
@@ -30,7 +31,7 @@ export const useUpdateLeaveRequestStatus = () => {
       if (error) throw new Error(error.message);
       return { data, status, email, name, id };
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ['leaveRequests'] });
       
       if (result.status === 'Approved') {
@@ -39,6 +40,33 @@ export const useUpdateLeaveRequestStatus = () => {
           spread: 70,
           origin: { y: 0.6 }
         });
+
+        // Insert absent dates for the approved leave
+        if (result.data && result.data[0]) {
+          const leaveReq = result.data[0];
+          const from = new Date(leaveReq.from_date + " " + new Date().getFullYear());
+          const to = new Date(leaveReq.to_date + " " + new Date().getFullYear());
+          
+          if (!isNaN(from.getTime()) && !isNaN(to.getTime())) {
+             let currentDate = new Date(from);
+             const datesToInsert = [];
+             while (currentDate <= to) {
+                const day = currentDate.getDay();
+                if (day !== 0 && day !== 6) { // Skip weekends
+                   datesToInsert.push({
+                      employee_id: leaveReq.employee_id,
+                      date: currentDate.toISOString().split('T')[0],
+                      subject: leaveReq.subject ? `${leaveReq.type} - ${leaveReq.subject}` : leaveReq.type
+                   });
+                }
+                currentDate.setDate(currentDate.getDate() + 1);
+             }
+             if (datesToInsert.length > 0) {
+                await supabase.from('absent_dates').insert(datesToInsert);
+                queryClient.invalidateQueries({ queryKey: ['employees'] });
+             }
+          }
+        }
       }
 
       serverLog('Leave Request Update', { id: result.id, newStatus: result.status, targetEmployee: result.name || 'Unknown' }, 'success');
@@ -121,6 +149,18 @@ export const useApplyLeave = () => {
       subject: string;
       description: string;
     }) => {
+      const from = new Date(leaveRequest.from_date);
+      const to = new Date(leaveRequest.to_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (from < today) {
+        throw new Error("Cannot apply for leave in the past.");
+      }
+      if (to < from) {
+        throw new Error("End date cannot be before start date.");
+      }
+
       const { data, error } = await supabase
         .from('leave_requests')
         .insert([leaveRequest])
@@ -206,23 +246,41 @@ export const useLogAttendance = () => {
       const today = new Date().toISOString().split('T')[0];
       
       if (action === 'Clock In') {
+        // Check if already clocked in today
+        const { data: existing } = await supabase
+          .from('attendance_history')
+          .select('id')
+          .eq('employee_id', employee_id)
+          .eq('date', today)
+          .maybeSingle();
+
+        if (existing) {
+           throw new Error("Already clocked in today.");
+        }
+
         const { error } = await supabase.from('attendance_history').insert([{
           date: today,
           employee_id,
           hours: 0,
-          status: 'Clocked In'
+          status: 'Clocked In',
+          clock_in_time: new Date().toISOString()
         }]);
         if (error) console.error("Error inserting attendance", error);
       } else {
         const { error } = await supabase.from('attendance_history').update({
           hours,
-          status: 'Clocked Out'
+          status: 'Clocked Out',
+          clock_out_time: new Date().toISOString()
         }).eq('employee_id', employee_id).eq('date', today);
         if (error) console.error("Error updating attendance", error);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendance_history'] });
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+    },
+    onError: (error) => {
+      toast.error(error.message);
     }
   });
 };
@@ -255,10 +313,10 @@ export const useAddNotification = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ title, body, time, tone }: { title: string; body: string; time: string; tone: string }) => {
+    mutationFn: async ({ title, body, time, tone, target_id = 'all' }: { title: string; body: string; time: string; tone: string; target_id?: string }) => {
       const { data, error } = await supabase
         .from('notifications')
-        .insert([{ title, body, time, tone }])
+        .insert([{ title, body, time, tone, target_id }])
         .select();
       if (error) throw new Error(error.message);
       return data;
@@ -279,10 +337,21 @@ export const useRunPayroll = () => {
   
   return useMutation({
     mutationFn: async (period: string) => {
-      // 1. Fetch active employees (including email for payslips)
+      // 0. Check if payroll for this period already exists
+      const { data: existingPayslips } = await supabase
+        .from('payslips')
+        .select('id')
+        .eq('period', period)
+        .limit(1);
+
+      if (existingPayslips && existingPayslips.length > 0) {
+        throw new Error(`Payroll for ${period} has already been processed.`);
+      }
+
+      // 1. Fetch active employees (including base_salary)
       const { data: employees, error: fetchError } = await supabase
         .from('employees')
-        .select('id, name, email, department, role, status')
+        .select('id, name, email, department, role, status, base_salary')
         .neq('status', 'Remote');
 
       if (fetchError) throw new Error(fetchError.message);
@@ -291,10 +360,27 @@ export const useRunPayroll = () => {
         throw new Error("No active employees found to run payroll.");
       }
 
-      // 2. Map to payslips
+      // 2. Fetch unpaid leaves for deductions
+      const { data: absentDates } = await supabase
+        .from('absent_dates')
+        .select('employee_id, subject');
+
+      // 3. Map to payslips
       const payslips = employees.map(emp => {
-        const gross = emp.department === 'Engineering' ? 8500 : 5000;
-        const net = Math.round(gross * 0.75);
+        const salary = emp.base_salary || 60000;
+        let gross = Math.round(salary / 12);
+        
+        // Deduct for unpaid leaves (approx daily rate = gross / 22)
+        const unpaidDays = (absentDates || []).filter(a => a.employee_id === emp.id && a.subject.toLowerCase().includes('unpaid')).reduce((acc, a) => {
+           return acc + (a.subject.toLowerCase().includes('half day') ? 0.5 : 1);
+        }, 0);
+        if (unpaidDays > 0) {
+           const dailyRate = gross / 22;
+           gross -= Math.round(unpaidDays * dailyRate);
+        }
+
+        const net = Math.round(gross * 0.75); // 25% tax bracket assumption
+        
         return {
           employee_id: emp.id,
           period: period,
@@ -381,6 +467,48 @@ export const useUpdateEmployee = () => {
       toast.error(`Failed to update profile: ${error.message}`);
       console.error(error);
       serverLog('Profile Update Failed', { error: error.message }, 'error');
+    }
+  });
+};
+
+export const useChangePassword = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, newPasswordHash }: { id: string; newPasswordHash: string }) => {
+      const { error } = await supabase
+        .from('employees')
+        .update({ password: newPasswordHash })
+        .eq('id', id);
+
+      if (error) throw new Error(error.message);
+      return id;
+    },
+    onSuccess: (id) => {
+      toast.success("Password changed successfully.");
+      serverLog('Password Changed', { employee_id: id }, 'success');
+    },
+    onError: (error) => {
+      toast.error(`Failed to change password: ${error.message}`);
+      serverLog('Password Change Failed', { error: error.message }, 'error');
+    }
+  });
+};
+
+export const useMarkNotificationRead = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', id);
+      if (error) throw new Error(error.message);
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
     }
   });
 };

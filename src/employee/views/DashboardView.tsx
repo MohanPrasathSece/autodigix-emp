@@ -21,15 +21,15 @@ import { useNavigate } from "react-router-dom";
 export function EmployeeDashboard() {
   const { isWorking, seconds, startWork, stopWork } = useAttendance();
   const { data: holidays = [] } = useHolidays();
-  const { data: notifications = [] } = useNotifications();
-  const { data: leaveRequests = [] } = useLeaveRequests();
   const { user } = useAuthStore();
+  const { data: notifications = [] } = useNotifications(user?.id);
+  const { data: leaveRequests = [] } = useLeaveRequests();
   const navigate = useNavigate();
 
   // Dynamically calculate the user's leaves taken
   const myLeaves = leaveRequests.filter((l: any) => l.employee_id === user?.id && l.status === "Approved");
   const leavesTaken = myLeaves.reduce((sum: number, l: any) => sum + l.days, 0);
-  const totalLeaves = 24; // Standardized total leaves available per year
+  const totalLeaves = (user as any)?.leave_balance || 24; // Use DB value or fallback to 24
   const leavesRemaining = totalLeaves - leavesTaken;
 
   const formatTime = (totalSeconds: number) => {

@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { useAddEmployee } from "@/shared/api/mutations";
+import { hashPassword } from "@/shared/lib/hash";
 
 export function AddEmployeeView() {
   const addEmployeeMutation = useAddEmployee();
@@ -24,7 +25,7 @@ export function AddEmployeeView() {
     password: "AutoDigix2026!"
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.department || !formData.role || !formData.password) {
       toast.error("Please fill in all required fields.");
@@ -41,12 +42,14 @@ export function AddEmployeeView() {
       .toUpperCase()
       .substring(0, 2);
 
+    const hashedPassword = await hashPassword(formData.password);
+
     addEmployeeMutation.mutate(
       {
         id: newId,
         name: formData.name,
         email: formData.email,
-        password: formData.password,
+        password: hashedPassword,
         role: formData.role,
         department: formData.department,
         status: "Active",

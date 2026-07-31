@@ -22,13 +22,34 @@ export function EmployeePayslipsView() {
   const ytdNet = payslips.reduce((sum: number, slip: any) => sum + slip.net, 0);
   const ytdDeductions = ytdGross - ytdNet;
 
-  const handleDownload = (month: string) => {
-    toast.info("Preparing PDF", {
-      description: `Opening print dialog for ${month} payslip. Please save as PDF.`
-    });
-    setTimeout(() => {
-      window.print();
-    }, 500);
+  const handleDownload = (slip: any) => {
+    toast.info("Preparing PDF", { description: `Generating payslip for ${slip.period}...` });
+    
+    const html = `<!DOCTYPE html><html><head><title>Payslip - ${slip.period}</title>
+      <style>body{font-family:sans-serif;padding:32px;color:#111}h1{color:#4f46e5}h2{color:#374151;margin-top:24px}
+      table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left}
+      th{background:#f9fafb;font-weight:600}
+      .footer{margin-top:32px;font-size:12px;color:#9ca3af}</style></head>
+      <body><h1>&#x1F4CA; Harmony HR — Official Payslip</h1><p>Period: ${slip.period}</p>
+      <h2>Employee Details</h2>
+      <p><strong>Name:</strong> ${user?.name}</p><p><strong>Email:</strong> ${user?.email}</p>
+      <h2>Salary Breakdown</h2>
+      <table><thead><tr><th>Description</th><th>Amount</th></tr></thead>
+      <tbody>
+        <tr><td>Gross Salary</td><td>Rs. ${slip.gross.toLocaleString('en-IN')}</td></tr>
+        <tr><td>Total Deductions</td><td style="color:red">Rs. ${(slip.gross - slip.net).toLocaleString('en-IN')}</td></tr>
+        <tr><td><strong>Net Pay</strong></td><td><strong>Rs. ${slip.net.toLocaleString('en-IN')}</strong></td></tr>
+      </tbody></table>
+      <div class="footer">Harmony HR — Confidential</div>
+      </body></html>`;
+
+    const win = window.open('', '_blank', 'width=800,height=600');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 500);
+    }
   };
 
   return (
@@ -100,7 +121,7 @@ export function EmployeePayslipsView() {
                     <p className="text-xs text-muted-foreground mb-0.5">Net Pay</p>
                     <p className="font-bold text-lg">₹ {slip.net.toLocaleString('en-IN')}</p>
                   </div>
-                  <Button variant="outline" size="icon" className="rounded-xl hidden sm:flex shrink-0" onClick={() => handleDownload(slip.period)}>
+                  <Button variant="outline" size="icon" className="rounded-xl hidden sm:flex shrink-0" onClick={() => handleDownload(slip)}>
                     <Download className="size-4" />
                   </Button>
                 </div>
@@ -123,7 +144,7 @@ export function EmployeePayslipsView() {
               </div>
 
               {/* Mobile Download Button */}
-              <Button variant="outline" className="w-full mt-6 rounded-xl sm:hidden" onClick={() => handleDownload(slip.period)}>
+              <Button variant="outline" className="w-full mt-6 rounded-xl sm:hidden" onClick={() => handleDownload(slip)}>
                 <Download className="mr-2 size-4" /> Download PDF
               </Button>
             </div>

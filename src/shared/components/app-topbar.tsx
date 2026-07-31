@@ -12,12 +12,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useNotifications, useEmployees } from "@/shared/api/queries";
+import { useMarkNotificationRead } from "@/shared/api/mutations";
 import { useAuthStore } from "@/shared/store/auth";
 
 export function AppTopbar() {
-  const { data: notifications = [] } = useNotifications();
-  const { data: employees = [] } = useEmployees();
   const user = useAuthStore((state) => state.user);
+  const { data: notifications = [] } = useNotifications(user?.id);
+  const { data: employees = [] } = useEmployees();
+  const markAsRead = useMarkNotificationRead();
   const logout = useAuthStore((state) => state.logout);
   const currentUser = employees.find((e: any) => e.id === user?.id) || employees[0];
   const [dark, setDark] = useState(false);
@@ -42,7 +44,9 @@ export function AppTopbar() {
           <DropdownMenuTrigger asChild>
             <Button size="icon" variant="ghost" className="relative rounded-xl">
               <Bell className="size-4" />
-              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-primary" />
+              {notifications.some((n: any) => !n.is_read) && (
+                <span className="absolute right-2 top-2 size-1.5 rounded-full bg-primary" />
+              )}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80 rounded-xl p-2">
@@ -50,13 +54,19 @@ export function AppTopbar() {
               Notifications
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {notifications.map((n: any) => (
-              <DropdownMenuItem key={n.id} className="flex flex-col items-start gap-1 rounded-lg px-3 py-2.5">
-                <div className="flex w-full items-center justify-between">
-                  <span className="text-sm font-medium">{n.title}</span>
-                  <span className="text-[11px] text-muted-foreground">{n.time}</span>
+            {notifications.slice(0, 5).map((n: any) => (
+              <DropdownMenuItem 
+                key={n.id} 
+                className={`flex flex-col items-start gap-1 rounded-lg px-3 py-2.5 cursor-pointer ${n.is_read ? 'opacity-70' : 'bg-primary/5'}`}
+                onClick={() => {
+                  if (!n.is_read) markAsRead.mutate(n.id);
+                }}
+              >
+                <div className="flex w-full items-center justify-between gap-4">
+                  <span className={`text-sm ${!n.is_read ? 'font-bold text-foreground' : 'font-medium'}`}>{n.title}</span>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{n.time.split(",")[0]}</span>
                 </div>
-                <span className="text-xs text-muted-foreground">{n.body}</span>
+                <span className="text-xs text-muted-foreground line-clamp-1">{n.body}</span>
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />

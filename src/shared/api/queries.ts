@@ -30,11 +30,19 @@ export const useHolidays = () => {
   });
 };
 
-export const useNotifications = () => {
+export const useNotifications = (userId?: string) => {
   return useQuery({
-    queryKey: ['notifications'],
+    queryKey: ['notifications', userId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('notifications').select('*').order('id', { ascending: false });
+      let query = supabase.from('notifications').select('*').order('id', { ascending: false });
+      
+      if (userId) {
+        query = query.or(`target_id.eq.all,target_id.eq.${userId}`);
+      } else {
+        query = query.eq('target_id', 'all');
+      }
+
+      const { data, error } = await query;
       if (error) throw new Error(error.message);
       return data;
     },

@@ -175,6 +175,12 @@ export const useApplyLeave = () => {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['leaveRequests'] });
       serverLog('Leave Request Applied', { employee_id: variables.employee_id, type: variables.type, days: variables.days }, 'success');
+      
+      sendEmail(
+        "admin@autodigix.com",
+        `New Leave Request from ${variables.name}`,
+        `Hi Admin,\n\n${variables.name} has applied for ${variables.days} day(s) of ${variables.type} (${variables.from_date} to ${variables.to_date}).\n\nSubject: ${variables.subject}\nReason: ${variables.description}\n\nPlease review this in the Admin Portal.`
+      );
     },
     onError: (error) => {
       toast.error(`Failed to submit leave request: ${error.message}`);

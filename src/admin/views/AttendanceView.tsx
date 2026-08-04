@@ -13,7 +13,7 @@ import { format, subMonths, eachDayOfInterval, startOfMonth, endOfMonth, startOf
 
 const getStatus = (progress: number, status: string) => {
   if (status === "On Leave") return { text: "On Leave", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" };
-  if (progress === 0) return { text: "Not Started", color: "text-muted-foreground", bg: "bg-muted", border: "border-border" };
+  if (progress === 0) return { text: "Absent", color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20" };
   if (progress >= 100) return { text: "Completed Shift", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" };
   return { text: "Working", color: "text-primary", bg: "bg-primary/10", border: "border-primary/20", active: true };
 };
@@ -185,7 +185,8 @@ export function AttendancePage() {
 
   const activeCount = employees.filter((e: any) => e.attendance > 0 && e.attendance < 100 && e.status !== "On Leave").length;
   const leaveCount = employees.filter((e: any) => e.status === "On Leave").length;
-  const notStartedCount = employees.length - activeCount - leaveCount;
+  const completedCount = employees.filter((e: any) => e.attendance >= 100 && e.status !== "On Leave").length;
+  const notStartedCount = employees.filter((e: any) => (!e.attendance || e.attendance === 0) && e.status !== "On Leave").length;
 
   const handleConfirm = () => {
     if (!confirmAction) return;
@@ -218,7 +219,7 @@ export function AttendancePage() {
 
         <TabsContent value="live" className="space-y-6">
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             <div className="rounded-2xl border bg-card p-4 flex items-center gap-4 shadow-soft">
               <div className="grid size-10 place-items-center rounded-full bg-primary/10 text-primary">
                 <Users className="size-5" />
@@ -226,6 +227,15 @@ export function AttendancePage() {
               <div>
                 <p className="text-2xl font-bold">{activeCount}</p>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Active Now</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border bg-card p-4 flex items-center gap-4 shadow-soft">
+              <div className="grid size-10 place-items-center rounded-full bg-emerald-500/10 text-emerald-500">
+                <CalendarCheck className="size-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{completedCount}</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Completed</p>
               </div>
             </div>
             <div className="rounded-2xl border bg-card p-4 flex items-center gap-4 shadow-soft">
@@ -238,12 +248,12 @@ export function AttendancePage() {
               </div>
             </div>
             <div className="rounded-2xl border bg-card p-4 flex items-center gap-4 shadow-soft">
-              <div className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground">
+              <div className="grid size-10 place-items-center rounded-full bg-red-500/10 text-red-500">
                 <AlertTriangle className="size-5" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{notStartedCount}</p>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Not Started</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Absent</p>
               </div>
             </div>
           </div>
@@ -256,7 +266,7 @@ export function AttendancePage() {
               
               let ringColor = "var(--primary)";
               if (emp.status === "On Leave") ringColor = "#f59e0b"; // amber-500
-              else if (progress === 0) ringColor = "var(--muted-foreground)";
+              else if (progress === 0) ringColor = "#ef4444"; // red-500
               else if (progress >= 100) ringColor = "#10b981"; // emerald-500
 
               const canStart = progress === 0 && emp.status !== "On Leave";

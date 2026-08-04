@@ -122,88 +122,93 @@ export function LeavePage() {
             <DialogTrigger asChild>
               <Button className="rounded-xl"><Plus className="mr-1.5 size-4" />Apply for leave</Button>
             </DialogTrigger>
-            <DialogContent className="w-full sm:max-w-md overflow-y-auto rounded-2xl">
+            <DialogContent className="w-full sm:max-w-xl overflow-y-auto rounded-2xl">
               <DialogHeader>
                 <DialogTitle>New leave request</DialogTitle>
                 <DialogDescription>Your request is sent to your manager for approval.</DialogDescription>
               </DialogHeader>
               <div className="mt-4 space-y-5">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Leave type</label>
-                  <Select value={leaveType} onValueChange={setLeaveType}>
-                    <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="paid">Paid Leave</SelectItem>
-                      <SelectItem value="sick">Sick leave</SelectItem>
-                      <SelectItem value="unpaid">Unpaid</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center space-x-2 py-1 border-y border-border/40 my-2">
-                  <Switch 
-                    id="half-day" 
-                    checked={isHalfDay} 
-                    onCheckedChange={(checked) => {
-                       setIsHalfDay(checked);
-                       if (checked && range.from) {
-                         setRange({ from: range.from });
-                       }
-                    }} 
-                  />
-                  <Label htmlFor="half-day" className="text-sm font-medium">Half Day</Label>
-                </div>
-                
-                {isHalfDay && (
-                  <div className="space-y-1.5 animate-in slide-in-from-top-1 fade-in duration-200">
-                    <label className="text-xs font-medium text-muted-foreground">Session</label>
-                    <Select value={halfDaySession} onValueChange={setHalfDaySession}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Leave type</label>
+                    <Select value={leaveType} onValueChange={setLeaveType}>
                       <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Morning">Morning</SelectItem>
-                        <SelectItem value="Afternoon">Afternoon</SelectItem>
+                        <SelectItem value="paid">Paid Leave</SelectItem>
+                        <SelectItem value="sick">Sick leave</SelectItem>
+                        <SelectItem value="unpaid">Unpaid</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                )}
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Dates</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("h-11 w-full justify-start rounded-xl font-normal", !range.from && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 size-4" />
-                        {range.from ? (range.to ? `${format(range.from, "PP")} - ${format(range.to, "PP")}` : format(range.from, "PP")) : "Pick a date range"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
-                      {isHalfDay ? (
-                        <Calendar 
-                          mode="single" 
-                          selected={range.from} 
-                          onSelect={(v: any) => setRange({ from: v })} 
-                          numberOfMonths={1} 
-                          className="p-3 pointer-events-auto"
-                          disabled={(date) => isWeekend(date)}
-                        />
-                      ) : (
-                        <Calendar 
-                          mode="range" 
-                          selected={range as any} 
-                          onSelect={(v: any) => setRange(v || {})} 
-                          numberOfMonths={1} 
-                          className="p-3 pointer-events-auto"
-                          disabled={(date) => isWeekend(date)}
-                        />
-                      )}
-                    </PopoverContent>
-                  </Popover>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Dates</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("h-11 w-full justify-start rounded-xl font-normal", !range.from && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 size-4" />
+                          {range.from ? (range.to ? `${format(range.from, "PP")} - ${format(range.to, "PP")}` : format(range.from, "PP")) : "Pick a date range"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
+                        {isHalfDay ? (
+                          <Calendar 
+                            mode="single" 
+                            selected={range.from} 
+                            onSelect={(v: any) => setRange({ from: v })} 
+                            numberOfMonths={1} 
+                            className="p-3 pointer-events-auto"
+                            disabled={(date) => isWeekend(date)}
+                          />
+                        ) : (
+                          <Calendar 
+                            mode="range" 
+                            selected={range as any} 
+                            onSelect={(v: any) => setRange(v || {})} 
+                            numberOfMonths={1} 
+                            className="p-3 pointer-events-auto"
+                            disabled={(date) => isWeekend(date)}
+                          />
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                    
+                    {isWeekendSelected && (
+                      <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+                        <AlertCircle className="size-3" /> Weekends are non-working days.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 py-3 border-y border-border/40 my-2 min-h-[70px]">
+                  <div className="flex items-center space-x-2 w-1/2">
+                    <Switch 
+                      id="half-day" 
+                      checked={isHalfDay} 
+                      onCheckedChange={(checked) => {
+                         setIsHalfDay(checked);
+                         if (checked && range.from) {
+                           setRange({ from: range.from });
+                         }
+                      }} 
+                    />
+                    <Label htmlFor="half-day" className="text-sm font-medium">Half Day</Label>
+                  </div>
                   
-                  {isWeekendSelected && (
-                    <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
-                      <AlertCircle className="size-3" /> Weekends are non-working days.
-                    </p>
-                  )}
+                  <div className="w-1/2 flex justify-end">
+                    {isHalfDay && (
+                      <div className="w-full animate-in slide-in-from-right-2 fade-in duration-200">
+                        <Select value={halfDaySession} onValueChange={setHalfDaySession}>
+                          <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Session" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Morning">Morning</SelectItem>
+                            <SelectItem value="Afternoon">Afternoon</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="rounded-xl border bg-muted/30 p-4 text-sm">

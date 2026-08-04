@@ -39,6 +39,10 @@ export function EmployeeDashboard() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const isAfter7PM = new Date().getHours() >= 19;
+  const WORKDAY_SECONDS = 8 * 3600;
+  const progressPercent = Math.min(100, Math.floor((seconds / WORKDAY_SECONDS) * 100));
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -63,6 +67,7 @@ export function EmployeeDashboard() {
               size="default"
               variant={isWorking ? "destructive" : "default"} 
               className="z-10 rounded-xl px-8 shadow-sm hover:scale-105 transition-all mt-2"
+              disabled={!isWorking && isAfter7PM}
             >
               <Clock className="mr-2 size-4" /> 
               {isWorking ? "Stop Work" : "Start Work"}
@@ -91,8 +96,7 @@ export function EmployeeDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {/* Mocked Attendance score since it's difficult to calculate without historical daily clock-in records */}
-        <StatCard label="Attendance" value={`${(user as any)?.attendance || 100}%`} icon={CalendarCheck} hint="Your overall attendance score" />
+        <StatCard label="Live Attendance" value={`${progressPercent}%`} icon={CalendarCheck} hint="Based on 8-hour workday" />
         <StatCard label="Leaves Available" value={`${leavesRemaining} days`} icon={PlaneTakeoff} hint={`Remaining of ${totalLeaves} days`} />
       </div>
 

@@ -4,6 +4,7 @@ import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { getLocalToday } from "@/shared/lib/dateUtils";
 import { useEmployees, useLeaveRequests, useAttendanceTrend, usePayrollTrend, useDepartmentSplit, usePayslips, useAttendanceHistory } from "@/shared/api/queries";
 import { useUpdateLeaveRequestStatus, useAddNotification } from "@/shared/api/mutations";
 import {
@@ -36,14 +37,23 @@ export function AdminDashboard() {
   const totalEmployees = employees.length;
   const onLeaveToday = employees.filter((e: any) => e.status === "On Leave").length;
   
+  const todayStrOverview = getLocalToday();
+  const isWorking = (empId: string) => {
+    const todayLogs = (attendanceHistory as any[]).filter(h => h.employee_id === empId && h.date === todayStrOverview).sort((a, b) => b.id - a.id);
+    return todayLogs.length > 0 && todayLogs[0].status === 'Clocked In';
+  };
+  
+  const workingEmployees = employees.filter((e: any) => isWorking(e.id));
+  
   // Calculate total monthly payroll for current month (or any latest period available)
   const latestPeriod = payslips.length > 0 ? payslips[payslips.length - 1].period : "No Data";
   const monthlyPayroll = payslips
     .filter((p: any) => p.period === latestPeriod)
     .reduce((sum: number, p: any) => sum + p.net, 0);
 
-  // Calculate retention simply as a placeholder (since we don't track terminations yet)
-  const retentionRate = totalEmployees > 0 ? "100%" : "0%";
+  // Calculate real retention rate
+  const activeAndOnLeave = employees.filter((e: any) => e.status !== "Terminated").length;
+  const retentionRate = totalEmployees > 0 ? `${Math.round((activeAndOnLeave / totalEmployees) * 100)}%` : "0%";
 
   const handleApproveLeave = (id: string, name: string) => {
     updateLeaveStatus.mutate({ id, status: 'Approved' }, {
@@ -281,10 +291,10 @@ export function AdminDashboard() {
           <Button size="icon" variant="ghost" className="rounded-lg"><MoreHorizontal className="size-4" /></Button>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {employees.filter((e: any) => attendanceHistory.some((h: any) => h.employee_id === e.id && h.status === 'Clocked In' && h.date === new Date().toISOString().split('T')[0])).length === 0 ? (
+          {workingEmployees.length === 0 ? (
             <div className="col-span-4 py-8 text-center text-sm text-muted-foreground">No active employees right now.</div>
           ) : (
-            employees.filter((e: any) => attendanceHistory.some((h: any) => h.employee_id === e.id && h.status === 'Clocked In' && h.date === new Date().toISOString().split('T')[0])).slice(0, 4).map((e: any) => (
+            workingEmployees.slice(0, 4).map((e: any) => (
               <div key={e.id} className="flex items-center gap-3 rounded-xl border bg-background p-3">
                 <div className={`grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br ${e.avatarColor || e.avatar_color} text-xs font-semibold text-white`}>
                   {e.initials}

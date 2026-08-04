@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { serverLog } from '../lib/logger';
+import { getLocalToday } from '../lib/dateUtils';
 import confetti from 'canvas-confetti';
 
 const sendEmail = async (to: string, subject: string, text: string) => {
@@ -55,7 +56,7 @@ export const useUpdateLeaveRequestStatus = () => {
                 if (day !== 0 && day !== 6) { // Skip weekends
                    datesToInsert.push({
                       employee_id: leaveReq.employee_id,
-                      date: currentDate.toISOString().split('T')[0],
+                      date: `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`,
                       subject: leaveReq.subject ? `${leaveReq.type} - ${leaveReq.subject}` : leaveReq.type
                    });
                 }
@@ -105,6 +106,8 @@ export const useAddEmployee = () => {
       attendance: number;
       avatar_color: string;
       initials: string;
+      emergency_contact_name?: string;
+      emergency_contact_phone?: string;
     }) => {
       const { data, error } = await supabase
         .from('employees')
@@ -242,8 +245,8 @@ export const useUpdateAttendance = () => {
 export const useLogAttendance = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ employee_id, action, hours = 0 }: { employee_id: string; action: 'Clock In' | 'Clock Out'; hours?: number }) => {
-      const today = new Date().toISOString().split('T')[0];
+    mutationFn: async ({ employee_id, action, hours = 0, timestamp }: { employee_id: string; action: 'Clock In' | 'Clock Out'; hours?: number; timestamp?: string }) => {
+      const today = getLocalToday();
       
       if (action === 'Clock In') {
         // Check if already clocked in today
@@ -270,7 +273,7 @@ export const useLogAttendance = () => {
         const { error } = await supabase.from('attendance_history').update({
           hours,
           status: 'Clocked Out',
-          clock_out_time: new Date().toISOString()
+          clock_out_time: timestamp || new Date().toISOString()
         }).eq('employee_id', employee_id).eq('date', today);
         if (error) console.error("Error updating attendance", error);
       }
@@ -348,10 +351,10 @@ export const useRunPayroll = () => {
         throw new Error(`Payroll for ${period} has already been processed.`);
       }
 
-      // 1. Fetch active employees (including base_salary)
+      // 1. Fetch active employees (including base_salary, monthly_allowance, monthly_benefits_deduction)
       const { data: employees, error: fetchError } = await supabase
         .from('employees')
-        .select('id, name, email, department, role, status, base_salary')
+        .select('id, name, email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction')
         .neq('status', 'Remote');
 
       if (fetchError) throw new Error(fetchError.message);
@@ -368,24 +371,34 @@ export const useRunPayroll = () => {
       // 3. Map to payslips
       const payslips = employees.map(emp => {
         const salary = emp.base_salary || 60000;
-        let gross = Math.round(salary / 12);
+        const base_amount = Math.round(salary / 12);
+        const allowances_amount = emp.monthly_allowance || 0;
         
-        // Deduct for unpaid leaves (approx daily rate = gross / 22)
+        let unpaid_leave_amount = 0;
         const unpaidDays = (absentDates || []).filter(a => a.employee_id === emp.id && a.subject.toLowerCase().includes('unpaid')).reduce((acc, a) => {
            return acc + (a.subject.toLowerCase().includes('half day') ? 0.5 : 1);
         }, 0);
+        
         if (unpaidDays > 0) {
-           const dailyRate = gross / 22;
-           gross -= Math.round(unpaidDays * dailyRate);
+           const dailyRate = base_amount / 22;
+           unpaid_leave_amount = Math.round(unpaidDays * dailyRate);
         }
 
-        const net = Math.round(gross * 0.75); // 25% tax bracket assumption
+        const gross = base_amount + allowances_amount - unpaid_leave_amount;
+        const benefits_amount = emp.monthly_benefits_deduction || 0;
+        const tax_amount = Math.round(gross * 0.25); // 25% tax bracket assumption
+        const net = gross - tax_amount - benefits_amount;
         
         return {
           employee_id: emp.id,
           period: period,
           gross: gross,
           net: net,
+          base_amount: base_amount,
+          allowances_amount: allowances_amount,
+          unpaid_leave_amount: unpaid_leave_amount,
+          tax_amount: tax_amount,
+          benefits_amount: benefits_amount,
           status: 'Paid'
         };
       });

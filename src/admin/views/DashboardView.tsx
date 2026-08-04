@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { getLocalToday } from "@/shared/lib/dateUtils";
 import { useLeaveRequests, useEmployees, usePayslips, useAttendanceHistory } from "@/shared/api/queries";
 import { useUpdateLeaveRequestStatus, useAddNotification, useRunPayroll, useAddHoliday } from "@/shared/api/mutations";
 import { useNavigate } from "react-router-dom";
@@ -32,11 +33,25 @@ export function AdminDashboardView() {
   const pendingLeaves = leaveRequests.filter((r: any) => r.status === "Pending").slice(0, 3);
   
   const totalEmployees = employees.length;
-  const activeEmployees = employees.filter((e: any) => e.attendance >= 50 && e.status !== "On Leave").length;
   const onLeaveEmployees = employees.filter((e: any) => e.status === "On Leave").length;
+  const expectedToWork = totalEmployees - onLeaveEmployees;
 
-  const attendanceRate = totalEmployees > 0 
-    ? Math.round(((totalEmployees - onLeaveEmployees) / totalEmployees) * 100) 
+  // Check if an employee is currently clocked in today
+  const todayStrDashboard = getLocalToday();
+  const isWorking = (empId: string) => {
+    const todayLogs = (attendanceHistory as any[]).filter(h => h.employee_id === empId && h.date === todayStrDashboard).sort((a, b) => b.id - a.id);
+    return todayLogs.length > 0 && todayLogs[0].status === 'Clocked In';
+  };
+  
+  const activeEmployees = employees.filter((e: any) => isWorking(e.id)).length;
+
+  // Present employees: any employee who clocked in at least once today
+  const presentEmployees = employees.filter((e: any) => 
+    (attendanceHistory as any[]).some(h => h.employee_id === e.id && h.date === todayStrDashboard)
+  ).length;
+
+  const attendanceRate = expectedToWork > 0 
+    ? Math.round((presentEmployees / expectedToWork) * 100) 
     : 0;
 
   const latestPeriod = payslips.length > 0 ? payslips[payslips.length - 1].period : "No Data";
@@ -45,7 +60,7 @@ export function AdminDashboardView() {
     .reduce((sum: number, p: any) => sum + p.net, 0);
 
   // Real notification log from attendance_history — today's events only
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalToday();
   const todayHistory = (attendanceHistory as any[])
     .filter((h: any) => h.date === todayStr)
     .sort((a: any, b: any) => b.id - a.id) // latest first

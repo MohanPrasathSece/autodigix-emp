@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { useLeaveRequests, usePayrollTrend, useAttendanceHistory } from "@/shared/api/queries";
+import { getLocalToday } from "@/shared/lib/dateUtils";
+import { useLeaveRequests, usePayrollTrend, useAttendanceHistory, useEmployees } from "@/shared/api/queries";
 import { FileSpreadsheet, Download } from "lucide-react";
 import {
   BarChart,
@@ -35,6 +36,7 @@ export function ReportsView() {
   const { data: leaveRequests = [] } = useLeaveRequests();
   const { data: payrollTrend = [] } = usePayrollTrend();
   const { data: attendanceHistory = [] } = useAttendanceHistory();
+  const { data: employees = [] } = useEmployees();
 
   // 1. Compute Leave Status Data dynamically
   const approved = leaveRequests.filter((r: any) => r.status === 'Approved').length;
@@ -50,19 +52,25 @@ export function ReportsView() {
   const payrollData = payrollTrend.map((p: any) => ({ month: p.month, cost: p.payroll }));
 
   // 3. Compute Work Hours & Attendance Data
-  // We will map over attendanceHistory to build chart data. 
-  // If no data exists, we provide an empty array so the charts aren't populated with fake data.
-  const attendanceRateData = attendanceHistory.reduce((acc: any, curr: any) => {
-    // Very naive aggregation for demo purposes
-    const month = new Date(curr.date).toLocaleString('en-US', { month: 'short' });
-    const existing = acc.find((a: any) => a.month === month);
-    if (existing) {
-      existing.rate = Math.round((existing.rate + 95) / 2); // basic logic for aggregation
-    } else {
-      acc.push({ month, rate: 95 });
-    }
+  const expectedToWork = employees.filter((e: any) => e.status !== "On Leave" && e.status !== "Remote").length || 1;
+
+  const attendanceByDate = attendanceHistory.reduce((acc: any, curr: any) => {
+    const d = curr.date; // e.g. '2023-10-25'
+    if (!acc[d]) acc[d] = new Set();
+    acc[d].add(curr.employee_id);
     return acc;
-  }, []);
+  }, {});
+
+  const attendanceRateData = Object.keys(attendanceByDate).sort().map(date => {
+    const presentCount = attendanceByDate[date].size;
+    const rate = Math.round((presentCount / expectedToWork) * 100);
+    const month = new Date(date).toLocaleString('en-US', { month: 'short', day: 'numeric' });
+    return { month, rate: Math.min(rate, 100) };
+  });
+
+  if (attendanceRateData.length === 0) {
+    attendanceRateData.push({ month: 'No Data', rate: 0 });
+  }
 
   const workHoursData = attendanceHistory.reduce((acc: any, curr: any) => {
     const day = new Date(curr.date).toLocaleString('en-US', { weekday: 'short' });
@@ -76,7 +84,7 @@ export function ReportsView() {
   }, []);
 
   const exportCSV = () => {
-    const dateStr = new Date().toISOString().split('T')[0];
+    const dateStr = getLocalToday();
     const rows: string[][] = [];
 
     // Section 1: Leave Requests

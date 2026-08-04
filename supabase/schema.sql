@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS employees (
     password TEXT NOT NULL,
     role TEXT NOT NULL,
     department TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('Active', 'On Leave', 'Remote')),
+    status TEXT NOT NULL CHECK (status IN ('Active', 'On Leave', 'Remote', 'Terminated')),
     attendance INTEGER NOT NULL DEFAULT 100,
     avatar_color TEXT NOT NULL,
     initials TEXT NOT NULL,
@@ -36,6 +36,14 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS location TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS manager_id TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS base_salary DECIMAL DEFAULT 60000;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS leave_balance INTEGER DEFAULT 24;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS monthly_allowance INTEGER DEFAULT 0;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS monthly_benefits_deduction INTEGER DEFAULT 0;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS emergency_contact_name TEXT;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT;
+
+-- Drop and recreate the status constraint if it exists to allow 'Terminated'
+ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_status_check;
+ALTER TABLE employees ADD CONSTRAINT employees_status_check CHECK (status IN ('Active', 'On Leave', 'Remote', 'Terminated'));
 
 -- Note: Passwords in the database should be updated to their SHA-256 hashed equivalents.
 -- 'password123' -> 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f'
@@ -89,9 +97,20 @@ CREATE TABLE IF NOT EXISTS payslips (
     period TEXT NOT NULL,
     gross INTEGER NOT NULL,
     net INTEGER NOT NULL,
+    base_amount INTEGER DEFAULT 0,
+    allowances_amount INTEGER DEFAULT 0,
+    unpaid_leave_amount INTEGER DEFAULT 0,
+    tax_amount INTEGER DEFAULT 0,
+    benefits_amount INTEGER DEFAULT 0,
     status TEXT NOT NULL CHECK (status IN ('Paid', 'Processing', 'Failed')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+ALTER TABLE payslips ADD COLUMN IF NOT EXISTS base_amount INTEGER DEFAULT 0;
+ALTER TABLE payslips ADD COLUMN IF NOT EXISTS allowances_amount INTEGER DEFAULT 0;
+ALTER TABLE payslips ADD COLUMN IF NOT EXISTS unpaid_leave_amount INTEGER DEFAULT 0;
+ALTER TABLE payslips ADD COLUMN IF NOT EXISTS tax_amount INTEGER DEFAULT 0;
+ALTER TABLE payslips ADD COLUMN IF NOT EXISTS benefits_amount INTEGER DEFAULT 0;
 
 -- ==========================================
 -- 3. COMPANY-WIDE TABLES
@@ -152,9 +171,8 @@ GROUP BY period;
 CREATE OR REPLACE VIEW attendance_trend_view AS
 SELECT 
     'Today' AS day,
-    COUNT(*) FILTER (WHERE attendance >= 50 AND status != 'On Leave') AS present,
-    COUNT(*) FILTER (WHERE attendance < 50 OR status = 'On Leave') AS absent
-FROM employees;
+    (SELECT COUNT(DISTINCT employee_id) FROM attendance_history WHERE date = timezone('utc'::text, now())::date::text) AS present,
+    ((SELECT COUNT(*) FROM employees WHERE status != 'On Leave') - (SELECT COUNT(DISTINCT employee_id) FROM attendance_history WHERE date = timezone('utc'::text, now())::date::text)) AS absent;
 
 -- ==========================================
 -- 5. ROW LEVEL SECURITY (RLS) POLICIES

@@ -18,19 +18,25 @@ export function PayrollPage() {
   
   const gross = currentMonthPayslips.reduce((s: number, x: any) => s + x.gross, 0);
   const net = currentMonthPayslips.reduce((s: number, x: any) => s + x.net, 0);
-  const totalDeductions = gross - net;
+  
+  const totalBase = currentMonthPayslips.reduce((s: number, x: any) => s + (x.base_amount || 0), 0);
+  const totalAllowances = currentMonthPayslips.reduce((s: number, x: any) => s + (x.allowances_amount || 0), 0);
+  const totalTax = currentMonthPayslips.reduce((s: number, x: any) => s + (x.tax_amount || 0), 0);
+  const totalBenefits = currentMonthPayslips.reduce((s: number, x: any) => s + (x.benefits_amount || 0), 0);
+  const totalUnpaidLeave = currentMonthPayslips.reduce((s: number, x: any) => s + (x.unpaid_leave_amount || 0), 0);
 
   const ytdEarnings = payslips.reduce((s: number, x: any) => s + x.gross, 0);
 
-  // Generate dynamic breakdown for the UI instead of hardcoded numbers
+  // Generate dynamic breakdown for the UI based on real payslip data
   const breakdown = gross > 0 ? [
-    { label: "Base salary (Estimated)", value: Math.round(gross * 0.8) },
-    { label: "Allowances & Bonus", value: Math.round(gross * 0.2) },
+    { label: "Base salary", value: totalBase },
+    { label: "Allowances", value: totalAllowances },
   ] : [];
 
-  const deductionsList = totalDeductions > 0 ? [
-    { label: "Tax & Compliance", value: Math.round(totalDeductions * 0.7) },
-    { label: "Benefits & Insurance", value: Math.round(totalDeductions * 0.3) },
+  const deductionsList = gross > 0 ? [
+    { label: "Tax", value: totalTax },
+    { label: "Benefits", value: totalBenefits },
+    ...(totalUnpaidLeave > 0 ? [{ label: "Unpaid Leave", value: totalUnpaidLeave }] : []),
   ] : [];
 
   return (

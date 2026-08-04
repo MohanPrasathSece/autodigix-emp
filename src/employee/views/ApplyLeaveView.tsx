@@ -177,14 +177,25 @@ export function LeavePage() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
-                      <Calendar 
-                        mode={isHalfDay ? "single" : "range"} 
-                        selected={range as any} 
-                        onSelect={(v: any) => setRange(isHalfDay ? { from: v } : (v || {}))} 
-                        numberOfMonths={1} 
-                        className="p-3 pointer-events-auto"
-                        disabled={(date) => isWeekend(date)} // Gray out weekends entirely
-                      />
+                      {isHalfDay ? (
+                        <Calendar 
+                          mode="single" 
+                          selected={range.from} 
+                          onSelect={(v: any) => setRange({ from: v })} 
+                          numberOfMonths={1} 
+                          className="p-3 pointer-events-auto"
+                          disabled={(date) => isWeekend(date)}
+                        />
+                      ) : (
+                        <Calendar 
+                          mode="range" 
+                          selected={range as any} 
+                          onSelect={(v: any) => setRange(v || {})} 
+                          numberOfMonths={1} 
+                          className="p-3 pointer-events-auto"
+                          disabled={(date) => isWeekend(date)}
+                        />
+                      )}
                     </PopoverContent>
                   </Popover>
                   

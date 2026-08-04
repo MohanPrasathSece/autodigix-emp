@@ -28,6 +28,8 @@ export function EmployeesPage() {
     email: "",
     role: "",
     password: "AutoDigix2026!",
+    emergency_contact_name: "",
+    emergency_contact_phone: "",
   });
 
   const rows = employees.filter(
@@ -69,7 +71,9 @@ export function EmployeesPage() {
         attendance: 100,
         avatar_color: "from-blue-500 to-indigo-500",
         initials: initials,
-        password: formData.password
+        password: formData.password,
+        emergency_contact_name: formData.emergency_contact_name,
+        emergency_contact_phone: formData.emergency_contact_phone
       },
       {
         onSuccess: () => {
@@ -191,6 +195,30 @@ export function EmployeesPage() {
                   <div className="grid gap-2">
                     <Label htmlFor="salary">Monthly Salary</Label>
                     <Input id="salary" type="number" placeholder="₹ 0" />
+                  </div>
+                  
+                  <div className="pt-4 border-t mt-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-4">Emergency Contact</h4>
+                    <div className="grid gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="ec_name">Contact Name</Label>
+                        <Input 
+                          id="ec_name" 
+                          placeholder="Jane Doe" 
+                          value={formData.emergency_contact_name}
+                          onChange={e => setFormData({...formData, emergency_contact_name: e.target.value})}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="ec_phone">Contact Phone</Label>
+                        <Input 
+                          id="ec_phone" 
+                          placeholder="+1 234 567 8900" 
+                          value={formData.emergency_contact_phone}
+                          onChange={e => setFormData({...formData, emergency_contact_phone: e.target.value})}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -129,10 +129,22 @@ export function EmployeeDetailsView() {
 
                 <div className="mt-8 pt-6 border-t">
                   <h4 className="text-sm font-bold text-muted-foreground mb-4 uppercase tracking-wider">Emergency Contact</h4>
-                  <div className="flex items-center gap-3 p-4 rounded-xl border bg-muted/20">
-                    <AlertTriangle className="size-5 text-amber-500" />
-                    <span className="text-sm font-medium">No emergency contact provided</span>
-                  </div>
+                  {emp.emergency_contact_name && emp.emergency_contact_phone ? (
+                    <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
+                      <div className="size-10 rounded-full bg-primary/10 grid place-items-center text-primary">
+                        <Users className="size-5" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">{emp.emergency_contact_name}</p>
+                        <p className="text-xs text-muted-foreground">{emp.emergency_contact_phone}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-4 rounded-xl border bg-muted/20">
+                      <AlertTriangle className="size-5 text-amber-500" />
+                      <span className="text-sm font-medium">No emergency contact provided</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </TabsContent>
@@ -164,14 +176,19 @@ export function EmployeeDetailsView() {
                       <div>
                         <h4 className="font-semibold text-emerald-600 mb-2">Earnings</h4>
                         <div className="space-y-1">
-                          <div className="flex justify-between"><span className="text-muted-foreground">Gross Salary</span><span>₹ {slip.gross.toLocaleString('en-IN')}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Base Salary</span><span>₹ {(slip.base_amount || slip.gross).toLocaleString('en-IN')}</span></div>
+                          {(slip.allowances_amount || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Allowances</span><span>₹ {slip.allowances_amount.toLocaleString('en-IN')}</span></div>}
+                          <div className="flex justify-between font-semibold mt-2 pt-2 border-t"><span className="text-foreground">Total Gross</span><span>₹ {slip.gross.toLocaleString('en-IN')}</span></div>
                         </div>
                       </div>
                       
                       <div>
                         <h4 className="font-semibold text-red-500 mb-2">Deductions</h4>
                         <div className="space-y-1">
-                          <div className="flex justify-between"><span className="text-muted-foreground">Total Deductions</span><span>₹ {(slip.gross - slip.net).toLocaleString('en-IN')}</span></div>
+                          {(slip.tax_amount || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Taxes</span><span>₹ {slip.tax_amount.toLocaleString('en-IN')}</span></div>}
+                          {(slip.benefits_amount || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Benefits</span><span>₹ {slip.benefits_amount.toLocaleString('en-IN')}</span></div>}
+                          {(slip.unpaid_leave_amount || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Unpaid Leave</span><span>₹ {slip.unpaid_leave_amount.toLocaleString('en-IN')}</span></div>}
+                          <div className="flex justify-between font-semibold mt-2 pt-2 border-t"><span className="text-foreground">Total Deductions</span><span>₹ {(slip.gross - slip.net).toLocaleString('en-IN')}</span></div>
                         </div>
                       </div>
                     </div>

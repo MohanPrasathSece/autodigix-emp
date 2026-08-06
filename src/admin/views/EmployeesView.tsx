@@ -201,7 +201,7 @@ export function EmployeesPage() {
                     <h4 className="text-sm font-semibold text-muted-foreground mb-4">Emergency Contact</h4>
                     <div className="grid gap-4">
                       <div className="grid gap-2">
-                        <Label htmlFor="ec_name">Contact Name</Label>
+                        <Label htmlFor="ec_name">Contact Name (Optional)</Label>
                         <Input 
                           id="ec_name" 
                           placeholder="Jane Doe" 
@@ -210,7 +210,7 @@ export function EmployeesPage() {
                         />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="ec_phone">Contact Phone</Label>
+                        <Label htmlFor="ec_phone">Contact Phone (Optional)</Label>
                         <Input 
                           id="ec_phone" 
                           placeholder="+1 234 567 8900" 

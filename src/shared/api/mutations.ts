@@ -109,9 +109,13 @@ export const useAddEmployee = () => {
       emergency_contact_name?: string;
       emergency_contact_phone?: string;
     }) => {
+      const payload = { ...newEmployee };
+      if (!payload.emergency_contact_name) delete payload.emergency_contact_name;
+      if (!payload.emergency_contact_phone) delete payload.emergency_contact_phone;
+
       const { data, error } = await supabase
         .from('employees')
-        .insert([newEmployee])
+        .insert([payload])
         .select();
 
       if (error) throw new Error(error.message);

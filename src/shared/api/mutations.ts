@@ -535,3 +535,29 @@ export const useMarkNotificationRead = () => {
     }
   });
 };
+
+export const useDeleteEmployee = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('employees')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw new Error(error.message);
+      return id;
+    },
+    onSuccess: (id) => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      serverLog('Employee Removed', { employee_id: id }, 'success');
+      toast.success("Employee removed successfully.");
+    },
+    onError: (error) => {
+      toast.error(`Failed to remove employee: ${error.message}`);
+      console.error(error);
+      serverLog('Employee Removal Failed', { error: error.message }, 'error');
+    }
+  });
+};

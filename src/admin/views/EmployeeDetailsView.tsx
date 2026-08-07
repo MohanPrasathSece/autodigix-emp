@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/page-header";
 import { useEmployees, usePayslips, useLeaveRequests } from "@/shared/api/queries";
+import { useDeleteEmployee } from "@/shared/api/mutations";
 import { cn } from "@/lib/utils";
 import { Wallet, FileText, Download, Phone, MapPin, Briefcase, Mail as MailIcon, Calendar, User, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ export function EmployeeDetailsView() {
   const { data: employees = [], isLoading } = useEmployees();
   const { data: payslips = [] } = usePayslips();
   const { data: leaveRequests = [] } = useLeaveRequests();
+  const deleteEmployeeMutation = useDeleteEmployee();
   const navigate = useNavigate();
   const { employeeId } = useParams<{ employeeId: string }>();
   const emp = employees.find((e: any) => e.id === employeeId);
@@ -256,9 +258,13 @@ export function EmployeeDetailsView() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRemoveConfirmOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => {
-              setIsRemoveConfirmOpen(false);
-              navigate('/admin/employees');
+            <Button variant="destructive" disabled={deleteEmployeeMutation.isPending} onClick={() => {
+              deleteEmployeeMutation.mutate(emp.id, {
+                onSuccess: () => {
+                  setIsRemoveConfirmOpen(false);
+                  navigate('/admin/employees');
+                }
+              });
             }}>Confirm Remove</Button>
           </DialogFooter>
         </DialogContent>

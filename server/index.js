@@ -21,6 +21,9 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_EMAIL,
     pass: process.env.SMTP_PASSWORD, // Use an App Password, not normal password
   },
+  tls: {
+    rejectUnauthorized: false
+  }
 });
 
 app.post('/api/send-email', async (req, res) => {

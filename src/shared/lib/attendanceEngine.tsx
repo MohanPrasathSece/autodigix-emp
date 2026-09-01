@@ -110,7 +110,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     
     try {
       await logAttendanceMutation.mutateAsync({ employee_id: user.id, action: 'Clock In' });
-      await updateAttendanceMutation.mutateAsync({ id: user.id, newAttendance: 100 });
+      await updateAttendanceMutation.mutateAsync({ id: user.id, newAttendance: 50 });
       toast.success("Clocked In", { description: "Your attendance has been logged in the system." });
     } catch (e: any) {
       toast.error(e.message || "Failed to clock in");
@@ -147,6 +147,8 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
       });
       if (hoursWorked < 4) {
         await updateAttendanceMutation.mutateAsync({ id: user.id, newAttendance: 50 });
+      } else {
+        await updateAttendanceMutation.mutateAsync({ id: user.id, newAttendance: 100 });
       }
       toast.success("Clocked Out", { description: autoStopAt7 ? "Shift auto-ended at 7 PM." : "Your shift has ended." });
     } catch (e: any) {

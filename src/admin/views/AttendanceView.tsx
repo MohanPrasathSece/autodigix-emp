@@ -6,10 +6,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useEmployees } from "@/shared/api/queries";
+import { useAttendanceHistory } from "@/shared/api/queries";
 import { useUpdateAttendance } from "@/shared/api/mutations";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, subMonths, eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths } from "date-fns";
+import { getLocalToday } from "@/shared/lib/dateUtils";
 
 const getStatus = (progress: number, status: string) => {
   if (status === "On Leave") return { text: "On Leave", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" };
@@ -166,6 +168,7 @@ function fmtSecs(secs: number) {
 
 export function AttendancePage() {
   const { data: employees = [] } = useEmployees();
+  const { data: attendanceHistory = [] } = useAttendanceHistory();
   const updateAttendanceMutation = useUpdateAttendance();
   const [activeTab, setActiveTab] = useState("live");
   const [confirmAction, setConfirmAction] = useState<{ type: "Start" | "Stop", empId: string, name: string } | null>(null);
@@ -183,10 +186,34 @@ export function AttendancePage() {
   // Read employee clock-in times from localStorage (keyed by employee id if admin forced, or the shared key)
   const clockInAt = localStorage.getItem("autodigix_clock_in_at");
 
-  const activeCount = employees.filter((e: any) => e.attendance > 0 && e.attendance < 100 && e.status !== "On Leave").length;
+  // Build today's attendance status from attendance_history (not the stale emp.attendance column)
+  const today = getLocalToday();
+  const todayAttendanceMap = useMemo(() => {
+    const map = new Map<string, number>(); // employee_id -> progress (0 | 50 | 100)
+    (attendanceHistory as any[]).forEach((record: any) => {
+      if (record.date !== today) return;
+      if (record.status === "Clock In") {
+        // Currently working — only set if not already completed
+        if (!map.has(record.employee_id) || map.get(record.employee_id) !== 100) {
+          map.set(record.employee_id, 50);
+        }
+      } else if (record.status === "Clocked Out") {
+        map.set(record.employee_id, 100);
+      }
+    });
+    return map;
+  }, [attendanceHistory, today]);
+
+  // Helper to get today's actual progress for an employee
+  const getTodayProgress = (empId: string, empStatus: string) => {
+    if (empStatus === "On Leave") return 0;
+    return todayAttendanceMap.get(empId) ?? 0;
+  };
+
+  const activeCount = employees.filter((e: any) => getTodayProgress(e.id, e.status) === 50 && e.status !== "On Leave").length;
   const leaveCount = employees.filter((e: any) => e.status === "On Leave").length;
-  const completedCount = employees.filter((e: any) => e.attendance >= 100 && e.status !== "On Leave").length;
-  const notStartedCount = employees.filter((e: any) => (!e.attendance || e.attendance === 0) && e.status !== "On Leave").length;
+  const completedCount = employees.filter((e: any) => getTodayProgress(e.id, e.status) >= 100 && e.status !== "On Leave").length;
+  const notStartedCount = employees.filter((e: any) => getTodayProgress(e.id, e.status) === 0 && e.status !== "On Leave").length;
 
   const handleConfirm = () => {
     if (!confirmAction) return;
@@ -261,7 +288,7 @@ export function AttendancePage() {
           {/* Employee Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {employees.map((emp: any) => {
-              const progress = emp.status === "On Leave" ? 0 : emp.attendance;
+              const progress = getTodayProgress(emp.id, emp.status);
               const status = getStatus(progress, emp.status);
               
               let ringColor = "var(--primary)";

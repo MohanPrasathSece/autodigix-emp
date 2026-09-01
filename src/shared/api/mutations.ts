@@ -275,15 +275,13 @@ export const useLogAttendance = () => {
           date: today,
           employee_id,
           hours: 0,
-          status: 'Clocked In',
-          clock_in_time: new Date().toISOString()
+          status: 'Clocked In'
         }]);
         if (error) throw new Error(error.message);
       } else {
         const { error } = await supabase.from('attendance_history').update({
           hours,
-          status: 'Clocked Out',
-          clock_out_time: timestamp || new Date().toISOString()
+          status: 'Clocked Out'
         }).eq('employee_id', employee_id).eq('date', today);
         if (error) throw new Error(error.message);
       }

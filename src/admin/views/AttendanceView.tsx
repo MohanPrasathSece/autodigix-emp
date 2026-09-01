@@ -197,7 +197,7 @@ export function AttendancePage() {
       if (record.date !== today) return;
       map.set(record.employee_id, {
         status: record.status,
-        clock_in_time: record.clock_in_time || null,
+        clock_in_time: record.clock_in_time || record.created_at || null,
         hours: record.hours || 0,
       });
     });
@@ -255,8 +255,7 @@ export function AttendancePage() {
           date: today,
           employee_id: confirmAction.empId,
           hours: 0,
-          status: 'Clocked In',
-          clock_in_time: new Date().toISOString()
+          status: 'Clocked In'
         }]);
         if (error) throw new Error(error.message);
 
@@ -268,8 +267,7 @@ export function AttendancePage() {
 
         const { error } = await supabase.from('attendance_history').update({
           hours: hoursWorked,
-          status: 'Clocked Out',
-          clock_out_time: new Date().toISOString()
+          status: 'Clocked Out'
         }).eq('employee_id', confirmAction.empId).eq('date', today);
         if (error) throw new Error(error.message);
 

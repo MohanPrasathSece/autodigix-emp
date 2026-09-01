@@ -50,7 +50,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
 
       if (openRecords && openRecords.length > 0) {
         for (const record of openRecords) {
-          const clockInDate = new Date(record.clock_in_time);
+          const clockInDate = new Date(record.clock_in_time || record.created_at);
           const isToday = record.date === today;
           
           const sevenPM = new Date(clockInDate);
@@ -64,7 +64,6 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
             
             await supabase.from('attendance_history').update({
               status: 'Clocked Out',
-              clock_out_time: new Date(finalEndTime).toISOString(),
               hours: hoursWorked
             }).eq('id', record.id);
           } else {
@@ -89,7 +88,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
           .eq('date', today)
           .maybeSingle();
         
-        if (todayData && todayData.clock_out_time) {
+        if (todayData && todayData.status === 'Clocked Out') {
           setSeconds(Math.floor(todayData.hours * 3600));
         } else {
           setSeconds(0);

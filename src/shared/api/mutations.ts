@@ -278,14 +278,14 @@ export const useLogAttendance = () => {
           status: 'Clocked In',
           clock_in_time: new Date().toISOString()
         }]);
-        if (error) console.error("Error inserting attendance", error);
+        if (error) throw new Error(error.message);
       } else {
         const { error } = await supabase.from('attendance_history').update({
           hours,
           status: 'Clocked Out',
           clock_out_time: timestamp || new Date().toISOString()
         }).eq('employee_id', employee_id).eq('date', today);
-        if (error) console.error("Error updating attendance", error);
+        if (error) throw new Error(error.message);
       }
     },
     onSuccess: () => {

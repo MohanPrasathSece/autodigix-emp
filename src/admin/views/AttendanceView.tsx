@@ -6,7 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useEmployees, useAttendanceHistory } from "@/shared/api/queries";
-import { useUpdateAttendance, useLogAttendance } from "@/shared/api/mutations";
+import { useUpdateAttendance } from "@/shared/api/mutations";
+import { supabase } from "@/lib/supabaseClient";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, subMonths, eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths } from "date-fns";
@@ -169,7 +171,7 @@ export function AttendancePage() {
   const { data: employees = [] } = useEmployees();
   const { data: attendanceHistory = [] } = useAttendanceHistory();
   const updateAttendanceMutation = useUpdateAttendance();
-  const logAttendanceMutation = useLogAttendance();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("live");
   const [confirmAction, setConfirmAction] = useState<{ type: "Start" | "Stop", empId: string, name: string } | null>(null);
   const [now, setNow] = useState(new Date());
@@ -242,16 +244,42 @@ export function AttendancePage() {
 
     try {
       if (confirmAction.type === "Start") {
-        // Create a Clock In attendance_history record
-        await logAttendanceMutation.mutateAsync({ employee_id: confirmAction.empId, action: 'Clock In' });
+        // Admin override: delete any existing record for today first, then insert fresh
+        await supabase
+          .from('attendance_history')
+          .delete()
+          .eq('employee_id', confirmAction.empId)
+          .eq('date', today);
+
+        const { error } = await supabase.from('attendance_history').insert([{
+          date: today,
+          employee_id: confirmAction.empId,
+          hours: 0,
+          status: 'Clocked In',
+          clock_in_time: new Date().toISOString()
+        }]);
+        if (error) throw new Error(error.message);
+
         await updateAttendanceMutation.mutateAsync({ id: confirmAction.empId, newAttendance: 50 });
       } else {
         // Clock Out — calculate hours from clock-in time
         const clockIn = getClockInTime(confirmAction.empId);
         const hoursWorked = clockIn ? (Date.now() - new Date(clockIn).getTime()) / (1000 * 60 * 60) : 0;
-        await logAttendanceMutation.mutateAsync({ employee_id: confirmAction.empId, action: 'Clock Out', hours: hoursWorked });
+
+        const { error } = await supabase.from('attendance_history').update({
+          hours: hoursWorked,
+          status: 'Clocked Out',
+          clock_out_time: new Date().toISOString()
+        }).eq('employee_id', confirmAction.empId).eq('date', today);
+        if (error) throw new Error(error.message);
+
         await updateAttendanceMutation.mutateAsync({ id: confirmAction.empId, newAttendance: 100 });
       }
+
+      // Manually invalidate to ensure the view refetches
+      await queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
+      await queryClient.invalidateQueries({ queryKey: ['employees'] });
+
       toast.success(`Successfully manually ${confirmAction.type.toLowerCase()}ed work for ${confirmAction.name}`);
       setConfirmAction(null);
     } catch (e: any) {

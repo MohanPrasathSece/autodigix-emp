@@ -39,7 +39,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
         .from('attendance_history')
         .select('*')
         .eq('employee_id', user.id)
-        .eq('status', 'Clock In');
+        .eq('status', 'Clocked In');
 
       if (error) {
         console.error("Failed to load attendance", error);

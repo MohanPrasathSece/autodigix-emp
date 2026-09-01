@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useEmployees } from "@/shared/api/queries";
-import { useAttendanceHistory } from "@/shared/api/queries";
-import { useUpdateAttendance } from "@/shared/api/mutations";
+import { useEmployees, useAttendanceHistory } from "@/shared/api/queries";
+import { useUpdateAttendance, useLogAttendance } from "@/shared/api/mutations";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, subMonths, eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths } from "date-fns";
@@ -170,9 +169,12 @@ export function AttendancePage() {
   const { data: employees = [] } = useEmployees();
   const { data: attendanceHistory = [] } = useAttendanceHistory();
   const updateAttendanceMutation = useUpdateAttendance();
+  const logAttendanceMutation = useLogAttendance();
   const [activeTab, setActiveTab] = useState("live");
   const [confirmAction, setConfirmAction] = useState<{ type: "Start" | "Stop", empId: string, name: string } | null>(null);
   const [now, setNow] = useState(new Date());
+
+  const SHIFT_HOURS = 8; // Full shift duration in hours
 
   // Live clock — ticks every second
   useEffect(() => {
@@ -183,52 +185,78 @@ export function AttendancePage() {
   const todayLabel = now.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const currentTimeLabel = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-  // Read employee clock-in times from localStorage (keyed by employee id if admin forced, or the shared key)
-  const clockInAt = localStorage.getItem("autodigix_clock_in_at");
-
-  // Build today's attendance status from attendance_history (not the stale emp.attendance column)
+  // Build today's attendance data from attendance_history
   const today = getLocalToday();
-  const todayAttendanceMap = useMemo(() => {
-    const map = new Map<string, number>(); // employee_id -> progress (0 | 50 | 100)
+
+  // Map: employee_id -> { status, clock_in_time, hours }
+  const todayRecordsMap = useMemo(() => {
+    const map = new Map<string, { status: string; clock_in_time: string | null; hours: number }>();
     (attendanceHistory as any[]).forEach((record: any) => {
       if (record.date !== today) return;
-      if (record.status === "Clock In") {
-        // Currently working — only set if not already completed
-        if (!map.has(record.employee_id) || map.get(record.employee_id) !== 100) {
-          map.set(record.employee_id, 50);
-        }
-      } else if (record.status === "Clocked Out") {
-        map.set(record.employee_id, 100);
-      }
+      map.set(record.employee_id, {
+        status: record.status,
+        clock_in_time: record.clock_in_time || null,
+        hours: record.hours || 0,
+      });
     });
     return map;
   }, [attendanceHistory, today]);
 
-  // Helper to get today's actual progress for an employee
-  const getTodayProgress = (empId: string, empStatus: string) => {
+  // Real-time progress: for active employees, calculate % of shift elapsed
+  const getTodayProgress = (empId: string, empStatus: string): number => {
     if (empStatus === "On Leave") return 0;
-    return todayAttendanceMap.get(empId) ?? 0;
+    const rec = todayRecordsMap.get(empId);
+    if (!rec) return 0;
+    if (rec.status === "Clocked Out") return 100;
+    // Currently clocked in — calculate real-time progress
+    if (rec.status === "Clocked In" && rec.clock_in_time) {
+      const clockIn = new Date(rec.clock_in_time).getTime();
+      const elapsedHours = (now.getTime() - clockIn) / (1000 * 60 * 60);
+      return Math.min(Math.round((elapsedHours / SHIFT_HOURS) * 100), 99); // Cap at 99% while still working
+    }
+    return 0;
   };
 
-  const activeCount = employees.filter((e: any) => getTodayProgress(e.id, e.status) === 50 && e.status !== "On Leave").length;
-  const leaveCount = employees.filter((e: any) => e.status === "On Leave").length;
-  const completedCount = employees.filter((e: any) => getTodayProgress(e.id, e.status) >= 100 && e.status !== "On Leave").length;
-  const notStartedCount = employees.filter((e: any) => getTodayProgress(e.id, e.status) === 0 && e.status !== "On Leave").length;
+  // Get clock-in time for a specific employee
+  const getClockInTime = (empId: string): string | null => {
+    const rec = todayRecordsMap.get(empId);
+    return rec?.clock_in_time || null;
+  };
 
-  const handleConfirm = () => {
+  // Is employee currently working?
+  const isEmployeeWorking = (empId: string): boolean => {
+    const rec = todayRecordsMap.get(empId);
+    return rec?.status === "Clocked In";
+  };
+
+  const activeCount = employees.filter((e: any) => isEmployeeWorking(e.id) && e.status !== "On Leave").length;
+  const leaveCount = employees.filter((e: any) => e.status === "On Leave").length;
+  const completedCount = employees.filter((e: any) => {
+    const rec = todayRecordsMap.get(e.id);
+    return rec?.status === "Clocked Out" && e.status !== "On Leave";
+  }).length;
+  const notStartedCount = employees.filter((e: any) => !todayRecordsMap.has(e.id) && e.status !== "On Leave").length;
+
+  const handleConfirm = async () => {
     if (!confirmAction) return;
-    
-    const newAttendance = confirmAction.type === "Start" ? 50 : 100;
-    
-    updateAttendanceMutation.mutate(
-      { id: confirmAction.empId, newAttendance },
-      {
-        onSuccess: () => {
-          toast.success(`Successfully manually ${confirmAction.type.toLowerCase()}ed work for ${confirmAction.name}`);
-          setConfirmAction(null);
-        }
+
+    try {
+      if (confirmAction.type === "Start") {
+        // Create a Clock In attendance_history record
+        await logAttendanceMutation.mutateAsync({ employee_id: confirmAction.empId, action: 'Clock In' });
+        await updateAttendanceMutation.mutateAsync({ id: confirmAction.empId, newAttendance: 50 });
+      } else {
+        // Clock Out — calculate hours from clock-in time
+        const clockIn = getClockInTime(confirmAction.empId);
+        const hoursWorked = clockIn ? (Date.now() - new Date(clockIn).getTime()) / (1000 * 60 * 60) : 0;
+        await logAttendanceMutation.mutateAsync({ employee_id: confirmAction.empId, action: 'Clock Out', hours: hoursWorked });
+        await updateAttendanceMutation.mutateAsync({ id: confirmAction.empId, newAttendance: 100 });
       }
-    );
+      toast.success(`Successfully manually ${confirmAction.type.toLowerCase()}ed work for ${confirmAction.name}`);
+      setConfirmAction(null);
+    } catch (e: any) {
+      toast.error(e.message || `Failed to ${confirmAction.type.toLowerCase()} work`);
+    }
   };
 
   return (
@@ -289,6 +317,8 @@ export function AttendancePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {employees.map((emp: any) => {
               const progress = getTodayProgress(emp.id, emp.status);
+              const working = isEmployeeWorking(emp.id) && emp.status !== "On Leave";
+              const empClockIn = getClockInTime(emp.id);
               const status = getStatus(progress, emp.status);
               
               let ringColor = "var(--primary)";
@@ -297,7 +327,7 @@ export function AttendancePage() {
               else if (progress >= 100) ringColor = "#10b981"; // emerald-500
 
               const canStart = progress === 0 && emp.status !== "On Leave";
-              const canStop = progress > 0 && progress < 100 && emp.status !== "On Leave";
+              const canStop = working;
 
               return (
                 <div key={emp.id} className="rounded-3xl border bg-card p-6 shadow-soft transition-all hover:-translate-y-1 hover:shadow-md flex flex-col items-center text-center relative overflow-hidden group">
@@ -343,12 +373,12 @@ export function AttendancePage() {
                       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                       <div className="flex items-center gap-1 font-mono"><Clock className="size-3" /> {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
                     </div>
-                    {progress > 0 && progress < 100 && clockInAt && (
+                    {working && empClockIn && (
                       <div className="text-center">
                         <span className="text-[10px] text-muted-foreground">Started </span>
-                        <span className="text-[10px] font-semibold">{new Date(parseInt(clockInAt, 10)).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="text-[10px] font-semibold">{new Date(empClockIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
                         <span className="mx-1 text-[10px] text-muted-foreground">·</span>
-                        <span className="font-mono text-[10px] font-bold text-primary">{fmtSecs(Math.floor((now.getTime() - parseInt(clockInAt, 10)) / 1000))}</span>
+                        <span className="font-mono text-[10px] font-bold text-primary">{fmtSecs(Math.floor((now.getTime() - new Date(empClockIn).getTime()) / 1000))}</span>
                       </div>
                     )}
                   </div>

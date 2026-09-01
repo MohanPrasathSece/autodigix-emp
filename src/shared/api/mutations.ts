@@ -289,7 +289,7 @@ export const useLogAttendance = () => {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attendance_history'] });
+      queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
       queryClient.invalidateQueries({ queryKey: ['employees'] });
     },
     onError: (error) => {

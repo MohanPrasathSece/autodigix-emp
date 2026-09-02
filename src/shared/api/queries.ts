@@ -11,6 +11,7 @@ export const useEmployees = () => {
           id, name, email, password, role, department, status, attendance, 
           avatarColor:avatar_color, initials, avatarUrl:avatar_url, 
           phone, location, manager_id, created_at,
+          emergency_contact_name, emergency_contact_phone, access_level,
           absentDates:absent_dates(date, subject)
         `);
       if (error) throw new Error(error.message);
@@ -34,17 +35,18 @@ export const useNotifications = (userId?: string) => {
   return useQuery({
     queryKey: ['notifications', userId],
     queryFn: async () => {
-      let query = supabase.from('notifications').select('*').order('id', { ascending: false });
-      
-      if (userId) {
-        query = query.or(`target_id.eq.all,target_id.eq.${userId}`);
-      } else {
-        query = query.eq('target_id', 'all');
-      }
+      const { data, error: fetchError } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('id', { ascending: false });
 
-      const { data, error } = await query;
-      if (error) throw new Error(error.message);
-      return data;
+      if (fetchError) throw new Error(fetchError.message);
+
+      // Filter client-side to avoid PostgREST reserved keyword issues with "all"
+      if (userId) {
+        return (data || []).filter((n: any) => n.target_id === 'all' || n.target_id === userId);
+      }
+      return (data || []).filter((n: any) => n.target_id === 'all');
     },
   });
 };

@@ -108,6 +108,7 @@ export const useAddEmployee = () => {
       initials: string;
       emergency_contact_name?: string;
       emergency_contact_phone?: string;
+      access_level?: string;
     }) => {
       const payload = { ...newEmployee };
       if (!payload.emergency_contact_name) delete payload.emergency_contact_name;
@@ -467,6 +468,12 @@ export const useUpdateEmployee = () => {
       location: string;
       manager_id: string;
       avatar_url: string;
+      initials: string;
+      department: string;
+      role: string;
+      status: string;
+      emergency_contact_name: string;
+      emergency_contact_phone: string;
     }>) => {
       const { id, ...updates } = employee;
       if (!id) throw new Error("Employee ID is required");

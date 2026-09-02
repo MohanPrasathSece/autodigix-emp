@@ -30,6 +30,7 @@ export function EmployeesPage() {
     password: "AutoDigix2026!",
     emergency_contact_name: "",
     emergency_contact_phone: "",
+    access_level: "employee",
   });
 
   const rows = employees.filter(
@@ -73,13 +74,14 @@ export function EmployeesPage() {
         initials: initials,
         password: formData.password,
         emergency_contact_name: formData.emergency_contact_name,
-        emergency_contact_phone: formData.emergency_contact_phone
+        emergency_contact_phone: formData.emergency_contact_phone,
+        access_level: formData.access_level
       },
       {
         onSuccess: () => {
           toast.success("Employee account created successfully.");
           setIsAddModalOpen(false);
-          setFormData({ name: "", email: "", role: "", password: "AutoDigix2026!" });
+          setFormData({ name: "", email: "", role: "", password: "AutoDigix2026!", emergency_contact_name: "", emergency_contact_phone: "", access_level: "employee" });
         }
       }
     );
@@ -172,7 +174,7 @@ export function EmployeesPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label>Access Level</Label>
-                    <Select defaultValue="employee">
+                    <Select value={formData.access_level} onValueChange={v => setFormData({...formData, access_level: v})}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select access level" />
                       </SelectTrigger>
@@ -314,7 +316,7 @@ export function EmployeesPage() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span>Access Level</span>
-                    <span className="text-foreground">{e.role.includes("HR") || e.role.includes("Manager") || e.role.includes("Admin") ? "Admin" : "Employee"}</span>
+                    <span className="text-foreground">{e.access_level === 'admin' ? "Admin" : "Employee"}</span>
                   </div>
                 </div>
               </div>

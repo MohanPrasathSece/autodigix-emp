@@ -62,9 +62,12 @@ export function LandingView() {
         return;
       }
 
-      const role = data.role.toLowerCase().includes('manager') || data.role.toLowerCase().includes('admin') 
+      // Use the explicit access_level column; fall back to job title check for legacy data
+      const role = data.access_level === 'admin' 
         ? 'admin' 
-        : 'employee';
+        : data.access_level === 'employee' 
+          ? 'employee'
+          : (data.role.toLowerCase().includes('manager') || data.role.toLowerCase().includes('admin') ? 'admin' : 'employee');
 
       serverLog('Login Success', { id: data.id, email: data.email, role }, 'success');
 

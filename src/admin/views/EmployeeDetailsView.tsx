@@ -1,24 +1,103 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/page-header";
 import { useEmployees, usePayslips, useLeaveRequests } from "@/shared/api/queries";
-import { useDeleteEmployee } from "@/shared/api/mutations";
+import { useDeleteEmployee, useUpdateEmployee } from "@/shared/api/mutations";
 import { cn } from "@/lib/utils";
-import { Wallet, FileText, Download, Phone, MapPin, Briefcase, Mail as MailIcon, Calendar, User, AlertTriangle } from "lucide-react";
+import { Wallet, FileText, Download, Phone, MapPin, Briefcase, Mail as MailIcon, Calendar, User, AlertTriangle, Users, Save, X, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 export function EmployeeDetailsView() {
   const { data: employees = [], isLoading } = useEmployees();
   const { data: payslips = [] } = usePayslips();
   const { data: leaveRequests = [] } = useLeaveRequests();
   const deleteEmployeeMutation = useDeleteEmployee();
+  const updateEmployeeMutation = useUpdateEmployee();
   const navigate = useNavigate();
   const { employeeId } = useParams<{ employeeId: string }>();
   const emp = employees.find((e: any) => e.id === employeeId);
   const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  const [editForm, setEditForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
+    department: "",
+    role: "",
+    status: "",
+    manager_id: "",
+    emergency_contact_name: "",
+    emergency_contact_phone: "",
+  });
+
+  useEffect(() => {
+    if (emp) {
+      setEditForm({
+        name: emp.name || "",
+        email: emp.email || "",
+        phone: emp.phone || "",
+        location: emp.location || "",
+        department: emp.department || "",
+        role: emp.role || "",
+        status: emp.status || "Active",
+        manager_id: emp.manager_id || "",
+        emergency_contact_name: emp.emergency_contact_name || "",
+        emergency_contact_phone: emp.emergency_contact_phone || "",
+      });
+    }
+  }, [emp]);
+
+  const handleSave = () => {
+    if (!emp) return;
+    updateEmployeeMutation.mutate(
+      {
+        id: emp.id,
+        name: editForm.name,
+        email: editForm.email,
+        phone: editForm.phone,
+        location: editForm.location,
+        department: editForm.department,
+        role: editForm.role,
+        status: editForm.status,
+        manager_id: editForm.manager_id,
+        emergency_contact_name: editForm.emergency_contact_name,
+        emergency_contact_phone: editForm.emergency_contact_phone,
+      },
+      {
+        onSuccess: () => {
+          setIsEditing(false);
+          toast.success("Employee profile updated successfully.");
+        },
+      }
+    );
+  };
+
+  const handleCancel = () => {
+    if (emp) {
+      setEditForm({
+        name: emp.name || "",
+        email: emp.email || "",
+        phone: emp.phone || "",
+        location: emp.location || "",
+        department: emp.department || "",
+        role: emp.role || "",
+        status: emp.status || "Active",
+        manager_id: emp.manager_id || "",
+        emergency_contact_name: emp.emergency_contact_name || "",
+        emergency_contact_phone: emp.emergency_contact_phone || "",
+      });
+    }
+    setIsEditing(false);
+  };
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading employee...</div>;
   if (!emp) return <div>Employee not found</div>;
@@ -40,8 +119,23 @@ export function EmployeeDetailsView() {
         description="View and manage employee details, payroll, and history."
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" className="rounded-xl">Edit Profile</Button>
-            <Button variant="destructive" className="rounded-xl" onClick={() => setIsRemoveConfirmOpen(true)}>Remove Employee</Button>
+            {isEditing ? (
+              <>
+                <Button variant="outline" className="rounded-xl" onClick={handleCancel}>
+                  <X className="mr-1.5 size-4" /> Cancel
+                </Button>
+                <Button className="rounded-xl" onClick={handleSave} disabled={updateEmployeeMutation.isPending}>
+                  <Save className="mr-1.5 size-4" /> {updateEmployeeMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" className="rounded-xl" onClick={() => setIsEditing(true)}>
+                  <Edit className="mr-1.5 size-4" /> Edit Profile
+                </Button>
+                <Button variant="destructive" className="rounded-xl" onClick={() => setIsRemoveConfirmOpen(true)}>Remove Employee</Button>
+              </>
+            )}
           </div>
         }
       />
@@ -69,32 +163,87 @@ export function EmployeeDetailsView() {
               )}
             </div>
             <div>
-              <h2 className="text-xl font-bold">{emp.name}</h2>
-              <p className="text-sm text-muted-foreground">{emp.role}</p>
-            </div>
-            <Badge
-              variant="outline"
-              className={cn(
-                "rounded-full text-[11px] font-medium mt-1 px-3 py-0.5",
-                emp.status === "Active" && "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-                emp.status === "Remote" && "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400",
-                emp.status === "On Leave" && "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+              {isEditing ? (
+                <Input
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="font-bold text-xl h-9 w-full text-center mb-1"
+                />
+              ) : (
+                <h2 className="text-xl font-bold">{emp.name}</h2>
               )}
-            >
-              {emp.status}
-            </Badge>
+              {isEditing ? (
+                <Input
+                  value={editForm.role}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                  className="text-sm h-7 w-full text-center mt-1"
+                  placeholder="Job Title"
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">{emp.role}</p>
+              )}
+            </div>
+
+            {isEditing ? (
+              <Select value={editForm.status} onValueChange={(v) => setEditForm({ ...editForm, status: v })}>
+                <SelectTrigger className="w-32 rounded-full text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Remote">Remote</SelectItem>
+                  <SelectItem value="On Leave">On Leave</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "rounded-full text-[11px] font-medium mt-1 px-3 py-0.5",
+                  emp.status === "Active" && "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                  emp.status === "Remote" && "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400",
+                  emp.status === "On Leave" && "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+                )}
+              >
+                {emp.status}
+              </Badge>
+            )}
 
             <div className="w-full pt-4 border-t space-y-4 text-sm text-left mt-4">
               <div className="flex items-center gap-3">
-                <MailIcon className="size-4 text-muted-foreground" />
-                <span className="font-medium">{emp.email}</span>
+                <MailIcon className="size-4 text-muted-foreground shrink-0" />
+                {isEditing ? (
+                  <Input
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    className="h-7 text-sm px-2"
+                  />
+                ) : (
+                  <span className="font-medium">{emp.email}</span>
+                )}
               </div>
               <div className="flex items-center gap-3">
-                <Briefcase className="size-4 text-muted-foreground" />
-                <span className="font-medium">{emp.department}</span>
+                <Briefcase className="size-4 text-muted-foreground shrink-0" />
+                {isEditing ? (
+                  <Select value={editForm.department} onValueChange={(v) => setEditForm({ ...editForm, department: v })}>
+                    <SelectTrigger className="h-7 text-sm">
+                      <SelectValue placeholder="Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="General">General</SelectItem>
+                      <SelectItem value="Engineering">Engineering</SelectItem>
+                      <SelectItem value="Design">Design</SelectItem>
+                      <SelectItem value="Human Resources">Human Resources</SelectItem>
+                      <SelectItem value="Sales & Marketing">Sales & Marketing</SelectItem>
+                      <SelectItem value="Finance">Finance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="font-medium">{emp.department}</span>
+                )}
               </div>
               <div className="flex items-center gap-3">
-                <Calendar className="size-4 text-muted-foreground" />
+                <Calendar className="size-4 text-muted-foreground shrink-0" />
                 <span className="font-medium">Joined {emp.created_at ? new Date(emp.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown'}</span>
               </div>
             </div>
@@ -117,21 +266,69 @@ export function EmployeeDetailsView() {
                 <div className="grid grid-cols-2 gap-6">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-1">Phone Number</p>
-                    <p className="flex items-center gap-2 text-sm"><Phone className="size-4 text-muted-foreground" /> {emp.phone || "Not provided"}</p>
+                    {isEditing ? (
+                      <Input
+                        value={editForm.phone}
+                        onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                        placeholder="+1 234 567 8900"
+                        className="h-8 text-sm"
+                      />
+                    ) : (
+                      <p className="flex items-center gap-2 text-sm"><Phone className="size-4 text-muted-foreground" /> {emp.phone || "Not provided"}</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-1">Manager ID</p>
-                    <p className="text-sm">{emp.manager_id || "Unassigned"}</p>
+                    {isEditing ? (
+                      <Input
+                        value={editForm.manager_id}
+                        onChange={(e) => setEditForm({ ...editForm, manager_id: e.target.value })}
+                        placeholder="e.g. EMP-001"
+                        className="h-8 text-sm"
+                      />
+                    ) : (
+                      <p className="text-sm">{emp.manager_id || "Unassigned"}</p>
+                    )}
                   </div>
                   <div className="col-span-2">
                     <p className="text-sm font-medium text-muted-foreground mb-1">Home Address</p>
-                    <p className="flex items-center gap-2 text-sm"><MapPin className="size-4 text-muted-foreground" /> {emp.location || "Not provided"}</p>
+                    {isEditing ? (
+                      <Input
+                        value={editForm.location}
+                        onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                        placeholder="123 Main St, City"
+                        className="h-8 text-sm"
+                      />
+                    ) : (
+                      <p className="flex items-center gap-2 text-sm"><MapPin className="size-4 text-muted-foreground" /> {emp.location || "Not provided"}</p>
+                    )}
                   </div>
                 </div>
 
                 <div className="mt-8 pt-6 border-t">
                   <h4 className="text-sm font-bold text-muted-foreground mb-4 uppercase tracking-wider">Emergency Contact</h4>
-                  {emp.emergency_contact_name && emp.emergency_contact_phone ? (
+                  {isEditing ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Contact Name</Label>
+                        <Input
+                          value={editForm.emergency_contact_name}
+                          onChange={(e) => setEditForm({ ...editForm, emergency_contact_name: e.target.value })}
+                          placeholder="Jane Doe"
+                          className="h-8 text-sm mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Contact Phone</Label>
+                        <Input
+                          value={editForm.emergency_contact_phone}
+                          onChange={(e) => setEditForm({ ...editForm, emergency_contact_phone: e.target.value })}
+                          placeholder="+1 234 567 8900"
+                          className="h-8 text-sm mt-1"
+                        />
+                      </div>
+                    </div>
+                  ) : emp.emergency_contact_name && emp.emergency_contact_phone ? (
                     <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
                       <div className="size-10 rounded-full bg-primary/10 grid place-items-center text-primary">
                         <Users className="size-5" />

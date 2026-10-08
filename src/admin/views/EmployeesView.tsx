@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Plus, MoreHorizontal, Mail, Eye, EyeOff } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Mail, Eye, EyeOff, Trash2, Wallet, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
@@ -9,14 +9,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useEmployees } from "@/shared/api/queries";
-import { useAddEmployee } from "@/shared/api/mutations";
+import { useAddEmployee, useDeleteEmployee } from "@/shared/api/mutations";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function EmployeesPage() {
   const { data: employees = [], isLoading } = useEmployees();
   const addEmployeeMutation = useAddEmployee();
+  const deleteEmployeeMutation = useDeleteEmployee();
   
   const navigate = useNavigate();
   const [q, setQ] = useState("");
@@ -85,6 +87,16 @@ export function EmployeesPage() {
         }
       }
     );
+  };
+
+  const handleDeleteEmployee = (id: string, name: string) => {
+    if (confirm(`Are you sure you want to remove ${name} from the system?`)) {
+      deleteEmployeeMutation.mutate(id, {
+        onSuccess: () => {
+          toast.success(`${name} has been removed.`);
+        }
+      });
+    }
   };
 
   if (isLoading) {
@@ -266,13 +278,54 @@ export function EmployeesPage() {
                 className="group relative rounded-3xl border bg-card p-5 shadow-soft transition-all hover:-translate-y-1 hover:shadow-md cursor-pointer flex flex-col"
               >
                 {/* Actions Dropdown / Menu */}
-                <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button size="icon" variant="secondary" className="size-7 rounded-full shadow-sm" onClick={(event) => { event.stopPropagation(); toast.info(`Emailing ${e.name}...`); }}>
+                <div className="absolute top-4 right-4 flex gap-1 z-20">
+                  <Button 
+                    size="icon" 
+                    variant="secondary" 
+                    className="size-7 rounded-full shadow-sm hover:bg-muted" 
+                    title={`Email ${e.name}`}
+                    onClick={(event) => { 
+                      event.stopPropagation(); 
+                      window.location.href = `mailto:${e.email}`;
+                    }}
+                  >
                     <Mail className="size-3.5" />
                   </Button>
-                  <Button size="icon" variant="secondary" className="size-7 rounded-full shadow-sm" onClick={(event) => { event.stopPropagation(); toast.info(`More options for ${e.name}`); }}>
-                    <MoreHorizontal className="size-3.5" />
-                  </Button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(event) => event.stopPropagation()}>
+                      <Button size="icon" variant="secondary" className="size-7 rounded-full shadow-sm hover:bg-muted" title="More Options">
+                        <MoreHorizontal className="size-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48 rounded-2xl p-1.5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+                      <DropdownMenuItem 
+                        onClick={() => navigate(`/admin/employees/${e.id}`)} 
+                        className="cursor-pointer gap-2 rounded-xl py-2 text-xs font-medium"
+                      >
+                        <User className="size-4 text-primary" /> View Details & Profile
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => navigate(`/admin/employees/${e.id}`)} 
+                        className="cursor-pointer gap-2 rounded-xl py-2 text-xs font-medium"
+                      >
+                        <Wallet className="size-4 text-emerald-600" /> Edit Salary & Role
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => window.location.href = `mailto:${e.email}`} 
+                        className="cursor-pointer gap-2 rounded-xl py-2 text-xs font-medium"
+                      >
+                        <Mail className="size-4 text-blue-500" /> Send Direct Email
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="my-1" />
+                      <DropdownMenuItem 
+                        onClick={() => handleDeleteEmployee(e.id, e.name)} 
+                        className="cursor-pointer gap-2 rounded-xl py-2 text-xs font-medium text-red-600 dark:text-red-400 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/40"
+                      >
+                        <Trash2 className="size-4 text-red-500" /> Remove Employee
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 {/* Avatar & Basic Info */}

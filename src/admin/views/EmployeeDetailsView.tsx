@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { generatePayslipPDFBase64 } from "@/shared/lib/pdfGenerator";
 
 export function EmployeeDetailsView() {
   const { data: employees = [], isLoading } = useEmployees();
@@ -114,6 +115,37 @@ export function EmployeeDetailsView() {
       });
     }
     setIsEditing(false);
+  };
+
+  const handleDownloadStatement = (slip: any) => {
+    if (!emp) return;
+    try {
+      const pdfBase64 = generatePayslipPDFBase64({
+        employeeName: emp.name,
+        employeeId: emp.id,
+        email: emp.email,
+        department: emp.department,
+        role: emp.role,
+        period: slip.period,
+        base_amount: slip.base_amount || slip.gross,
+        allowances_amount: slip.allowances_amount || 0,
+        unpaid_leave_amount: slip.unpaid_leave_amount || 0,
+        gross: slip.gross,
+        tax_amount: slip.tax_amount || 0,
+        benefits_amount: slip.benefits_amount || 0,
+        net: slip.net
+      });
+
+      const link = document.createElement("a");
+      link.href = `data:application/pdf;base64,${pdfBase64}`;
+      link.download = `Payslip_${slip.period.replace(/\s+/g, '_')}_${emp.name.replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Statement for ${slip.period} downloaded!`);
+    } catch (err: any) {
+      toast.error(`Failed to download statement: ${err.message}`);
+    }
   };
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading employee...</div>;
@@ -486,7 +518,7 @@ export function EmployeeDetailsView() {
                     </div>
 
                     <div className="mt-6 flex justify-end">
-                       <Button variant="outline" size="sm" className="rounded-lg">
+                       <Button variant="outline" size="sm" className="rounded-lg" onClick={() => handleDownloadStatement(slip)}>
                         <Download className="mr-2 size-4" /> Download Statement
                       </Button>
                     </div>

@@ -162,7 +162,7 @@ export function AdminDashboardView() {
         description="Company overview, analytics, and pending approvals."
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" className="rounded-xl">
+            <Button variant="outline" className="rounded-xl" onClick={() => navigate('/admin/reports')}>
               <FileSpreadsheet className="mr-2 size-4" /> Export Report
             </Button>
             <Button className="rounded-xl" onClick={() => navigate('/admin/employees')}>

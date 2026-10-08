@@ -3,14 +3,18 @@ import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { usePayslips, usePayrollTrend } from "@/shared/api/queries";
+import { usePayslips, usePayrollTrend, useEmployees } from "@/shared/api/queries";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { cn } from "@/lib/utils";
+import { exportToCSV } from "@/shared/lib/exportUtils";
+import { generatePayslipPDFBase64 } from "@/shared/lib/pdfGenerator";
+import { toast } from "sonner";
 
 export function PayrollPage() {
   const { data: payslips = [] } = usePayslips();
   const { data: payrollTrend = [] } = usePayrollTrend();
+  const { data: employees = [] } = useEmployees();
   
   // Calculate aggregate metrics from actual payslip data
   const latestPeriod = payslips.length > 0 ? payslips[payslips.length - 1].period : "N/A";
@@ -26,6 +30,53 @@ export function PayrollPage() {
   const totalUnpaidLeave = currentMonthPayslips.reduce((s: number, x: any) => s + (x.unpaid_leave_amount || 0), 0);
 
   const ytdEarnings = payslips.reduce((s: number, x: any) => s + x.gross, 0);
+
+  const handleExportCSV = () => {
+    if (payslips.length === 0) {
+      toast.info("No payslips to export.");
+      return;
+    }
+    exportToCSV("payroll_history", payslips);
+    toast.success("Payroll history exported to CSV.");
+  };
+
+  const handleDownloadPDF = (p: any) => {
+    const emp = employees.find((e: any) => e.id === p.employee_id) || {
+      name: "Employee",
+      id: p.employee_id || "EMP",
+      email: "",
+      department: "General",
+      role: "Staff"
+    };
+
+    try {
+      const pdfBase64 = generatePayslipPDFBase64({
+        employeeName: emp.name,
+        employeeId: emp.id,
+        email: emp.email,
+        department: emp.department,
+        role: emp.role,
+        period: p.period,
+        base_amount: p.base_amount || p.gross,
+        allowances_amount: p.allowances_amount || 0,
+        unpaid_leave_amount: p.unpaid_leave_amount || 0,
+        gross: p.gross,
+        tax_amount: p.tax_amount || 0,
+        benefits_amount: p.benefits_amount || 0,
+        net: p.net
+      });
+
+      const link = document.createElement("a");
+      link.href = `data:application/pdf;base64,${pdfBase64}`;
+      link.download = `Payslip_${p.period.replace(/\s+/g, '_')}_${emp.name.replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Payslip for ${p.period} downloaded!`);
+    } catch (err: any) {
+      toast.error(`Failed to download PDF: ${err.message}`);
+    }
+  };
 
   // Generate dynamic breakdown for the UI based on real payslip data
   const breakdown = gross > 0 ? [
@@ -45,7 +96,9 @@ export function PayrollPage() {
         title="Payroll"
         description="Company compensation, payslips, and history."
         actions={
-          <Button variant="outline" className="rounded-xl"><Download className="mr-1.5 size-4" />Export Log</Button>
+          <Button variant="outline" className="rounded-xl" onClick={handleExportCSV}>
+            <Download className="mr-1.5 size-4" />Export Log
+          </Button>
         }
       />
 
@@ -122,7 +175,7 @@ export function PayrollPage() {
       <div className="rounded-2xl border bg-card shadow-soft">
         <div className="flex items-center justify-between border-b p-4">
           <h2 className="text-base font-semibold">Payslip history</h2>
-          <Button size="sm" variant="ghost" className="rounded-lg text-xs">Export all</Button>
+          <Button size="sm" variant="ghost" className="rounded-lg text-xs" onClick={handleExportCSV}>Export all</Button>
         </div>
         <Table>
           <TableHeader>
@@ -158,7 +211,9 @@ export function PayrollPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="pr-5 text-right">
-                    <Button size="sm" variant="ghost" className="rounded-lg"><Download className="size-4" /></Button>
+                    <Button size="sm" variant="ghost" className="rounded-lg" onClick={() => handleDownloadPDF(p)} title="Download PDF Payslip">
+                      <Download className="size-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

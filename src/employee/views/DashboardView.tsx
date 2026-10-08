@@ -131,7 +131,7 @@ export function EmployeeDashboard() {
         <div className="rounded-2xl border bg-card p-6 shadow-soft">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-semibold">Notifications</h2>
-            <Button size="sm" variant="ghost" className="rounded-lg text-xs">
+            <Button size="sm" variant="ghost" className="rounded-lg text-xs" onClick={() => navigate('/employee/profile')}>
               View all
             </Button>
           </div>

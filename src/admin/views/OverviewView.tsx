@@ -4,6 +4,7 @@ import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { exportToCSV } from "@/shared/lib/exportUtils";
 import { getLocalToday } from "@/shared/lib/dateUtils";
 import { useEmployees, useLeaveRequests, useAttendanceTrend, usePayrollTrend, useDepartmentSplit, usePayslips, useAttendanceHistory } from "@/shared/api/queries";
 import { useUpdateLeaveRequestStatus, useAddNotification } from "@/shared/api/mutations";
@@ -90,8 +91,12 @@ export function AdminDashboard() {
         description="A calm, live snapshot of your organization."
         actions={
           <>
-            <Button variant="outline" className="rounded-xl">Export</Button>
-            <Button className="rounded-xl">New report</Button>
+            <Button variant="outline" className="rounded-xl" onClick={() => exportToCSV('company_overview_employees', employees)}>
+              Export
+            </Button>
+            <Button className="rounded-xl" onClick={() => navigate('/admin/reports')}>
+              New report
+            </Button>
           </>
         }
       />

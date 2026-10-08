@@ -204,9 +204,27 @@ export const useApplyLeave = () => {
       serverLog('Leave Request Applied', { employee_id: variables.employee_id, type: variables.type, days: variables.days }, 'success');
       
       sendEmail(
-        "admin@autodigix.com",
-        `New Leave Request from ${variables.name}`,
-        `Hi Admin,\n\n${variables.name} has applied for ${variables.days} day(s) of ${variables.type} (${variables.from_date} to ${variables.to_date}).\n\nSubject: ${variables.subject}\nReason: ${variables.description}\n\nPlease review this in the Admin Portal.`
+        "Info@autodigix.in",
+        `New Leave Application: ${variables.name} (${variables.type})`,
+        `Hi Admin,\n\n${variables.name} has applied for ${variables.days} day(s) of ${variables.type} (${variables.from_date} to ${variables.to_date}).\n\nSubject: ${variables.subject}\nReason: ${variables.description}\n\nPlease review and approve/reject this in the Admin Portal.`,
+        `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+            <div style="background-color: #1e293b; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h2 style="color: #ffffff; margin: 0; font-size: 20px;">New Leave Application</h2>
+              <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;">Autodigix HR Admin Notification</p>
+            </div>
+            <div style="padding: 24px; color: #334155; line-height: 1.6;">
+              <p style="margin-top: 0;"><strong>Employee Name:</strong> ${variables.name}</p>
+              <p><strong>Leave Type:</strong> <span style="background-color: #fef3c7; color: #92400e; padding: 4px 8px; border-radius: 4px; font-weight: bold;">${variables.type}</span></p>
+              <p><strong>Duration:</strong> ${variables.days} day(s) (${variables.from_date} to ${variables.to_date})</p>
+              <p><strong>Subject:</strong> ${variables.subject}</p>
+              <p><strong>Reason:</strong></p>
+              <div style="background-color: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 14px; color: #0f172a;">${variables.description}</div>
+              <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+              <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">Please log into the Autodigix HR Admin Portal to review or approve this request.</p>
+            </div>
+          </div>
+        `
       );
     },
     onError: (error) => {

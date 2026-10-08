@@ -56,6 +56,7 @@
     "express": "^5.2.1",
     "framer-motion": "^12.42.2",
     "input-otp": "^1.4.2",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.575.0",
     "nodemailer": "^9.0.3",
     "react": "^19.2.0",

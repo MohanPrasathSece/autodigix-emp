@@ -46,7 +46,7 @@ export function AdminProfileView() {
         phone: employeeData.phone || "+1 (555) 019-8234",
         location: employeeData.location || "New York, NY",
         initials: employeeData.initials || employeeData.name.substring(0, 2).toUpperCase(),
-        avatarUrl: employeeData.avatar_url || employeeData.avatarUrl || localStorage.getItem(ADMIN_AVATAR_KEY) || ""
+        avatarUrl: employeeData.avatarUrl || localStorage.getItem(ADMIN_AVATAR_KEY) || ""
       }));
     }
   }, [employeeData]);
@@ -110,7 +110,7 @@ export function AdminProfileView() {
         phone: employeeData.phone || "+1 (555) 019-8234",
         location: employeeData.location || "New York, NY",
         initials: employeeData.initials || employeeData.name.substring(0, 2).toUpperCase(),
-        avatarUrl: employeeData.avatar_url || employeeData.avatarUrl || localStorage.getItem(ADMIN_AVATAR_KEY) || ""
+        avatarUrl: employeeData.avatarUrl || localStorage.getItem(ADMIN_AVATAR_KEY) || ""
       }));
     }
     setIsEditing(false);

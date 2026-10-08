@@ -27,7 +27,7 @@ const transporter = nodemailer.createTransport({
 });
 
 app.post('/api/send-email', async (req, res) => {
-  const { to, subject, text, html } = req.body;
+  const { to, subject, text, html, pdfBase64, filename } = req.body;
 
   if (!to || !subject) {
     return res.status(400).json({ error: 'Missing required fields: to, subject' });
@@ -40,18 +40,28 @@ app.post('/api/send-email', async (req, res) => {
   }
 
   try {
+    const attachments = [];
+    if (pdfBase64) {
+      attachments.push({
+        filename: filename || 'Payslip.pdf',
+        content: Buffer.from(pdfBase64, 'base64'),
+        contentType: 'application/pdf',
+      });
+    }
+
     const info = await transporter.sendMail({
       from: `"Autodigix HR" <${process.env.SMTP_EMAIL}>`,
       to,
       subject,
       text,
-      html,
+      html: html || `<p>${text.replace(/\n/g, '<br/>')}</p>`,
+      attachments,
     });
     console.log('Message sent: %s', info.messageId);
     res.status(200).json({ success: true, messageId: info.messageId });
   } catch (error) {
     console.error('Error sending email:', error);
-    res.status(500).json({ error: 'Failed to send email' });
+    res.status(500).json({ error: error.message || 'Failed to send email' });
   }
 });
 

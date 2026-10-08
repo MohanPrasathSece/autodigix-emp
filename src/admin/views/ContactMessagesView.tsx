@@ -41,7 +41,6 @@ export function ContactMessagesView() {
       <PageHeader
         title="Contact Messages"
         description="View and manage messages submitted from the public landing page."
-        icon={<MessageSquare className="size-6 text-primary" />}
       />
 
       <div className="rounded-2xl border bg-card shadow-soft overflow-hidden">

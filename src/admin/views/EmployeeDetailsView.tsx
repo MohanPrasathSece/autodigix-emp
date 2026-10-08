@@ -37,10 +37,14 @@ export function EmployeeDetailsView() {
     manager_id: "",
     emergency_contact_name: "",
     emergency_contact_phone: "",
+    monthly_base_salary: "50000",
+    monthly_allowance: "0",
+    monthly_benefits_deduction: "0",
   });
 
   useEffect(() => {
     if (emp) {
+      const monthlyBase = emp.base_salary ? Math.round(emp.base_salary / 12) : 50000;
       setEditForm({
         name: emp.name || "",
         email: emp.email || "",
@@ -52,12 +56,18 @@ export function EmployeeDetailsView() {
         manager_id: emp.manager_id || "",
         emergency_contact_name: emp.emergency_contact_name || "",
         emergency_contact_phone: emp.emergency_contact_phone || "",
+        monthly_base_salary: monthlyBase.toString(),
+        monthly_allowance: (emp.monthly_allowance || 0).toString(),
+        monthly_benefits_deduction: (emp.monthly_benefits_deduction || 0).toString(),
       });
     }
   }, [emp]);
 
   const handleSave = () => {
     if (!emp) return;
+    const monthlySalary = Number(editForm.monthly_base_salary || 0);
+    const annualBaseSalary = monthlySalary * 12;
+
     updateEmployeeMutation.mutate(
       {
         id: emp.id,
@@ -71,11 +81,14 @@ export function EmployeeDetailsView() {
         manager_id: editForm.manager_id,
         emergency_contact_name: editForm.emergency_contact_name,
         emergency_contact_phone: editForm.emergency_contact_phone,
+        base_salary: annualBaseSalary,
+        monthly_allowance: Number(editForm.monthly_allowance || 0),
+        monthly_benefits_deduction: Number(editForm.monthly_benefits_deduction || 0),
       },
       {
         onSuccess: () => {
           setIsEditing(false);
-          toast.success("Employee profile updated successfully.");
+          toast.success("Employee profile and salary updated successfully.");
         },
       }
     );
@@ -83,6 +96,7 @@ export function EmployeeDetailsView() {
 
   const handleCancel = () => {
     if (emp) {
+      const monthlyBase = emp.base_salary ? Math.round(emp.base_salary / 12) : 50000;
       setEditForm({
         name: emp.name || "",
         email: emp.email || "",
@@ -94,6 +108,9 @@ export function EmployeeDetailsView() {
         manager_id: emp.manager_id || "",
         emergency_contact_name: emp.emergency_contact_name || "",
         emergency_contact_phone: emp.emergency_contact_phone || "",
+        monthly_base_salary: monthlyBase.toString(),
+        monthly_allowance: (emp.monthly_allowance || 0).toString(),
+        monthly_benefits_deduction: (emp.monthly_benefits_deduction || 0).toString(),
       });
     }
     setIsEditing(false);
@@ -350,6 +367,82 @@ export function EmployeeDetailsView() {
 
             {/* Payroll Tab */}
             <TabsContent value="payroll" className="space-y-6 animate-fade-in">
+              {/* Compensation Config Card */}
+              <div className="rounded-2xl border bg-card p-6 shadow-soft space-y-4">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <div>
+                    <h3 className="text-base font-bold flex items-center gap-2">
+                      <Wallet className="size-5 text-primary" /> Current Compensation Structure
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Monthly salary breakdown used during automatic payroll runs.</p>
+                  </div>
+                  {isEditing && (
+                    <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                      Editing Salary Mode
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground">Monthly Base Salary</Label>
+                    {isEditing ? (
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                        <Input
+                          type="number"
+                          value={editForm.monthly_base_salary}
+                          onChange={(e) => setEditForm({ ...editForm, monthly_base_salary: e.target.value })}
+                          className="h-8 text-sm pl-6 font-semibold"
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-lg font-bold text-foreground">
+                        ₹ {(emp.base_salary ? Math.round(emp.base_salary / 12) : 50000).toLocaleString('en-IN')}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground">Monthly Allowance</Label>
+                    {isEditing ? (
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                        <Input
+                          type="number"
+                          value={editForm.monthly_allowance}
+                          onChange={(e) => setEditForm({ ...editForm, monthly_allowance: e.target.value })}
+                          className="h-8 text-sm pl-6 font-semibold"
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                        + ₹ {(emp.monthly_allowance || 0).toLocaleString('en-IN')}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground">Monthly Benefits Deduction</Label>
+                    {isEditing ? (
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                        <Input
+                          type="number"
+                          value={editForm.monthly_benefits_deduction}
+                          onChange={(e) => setEditForm({ ...editForm, monthly_benefits_deduction: e.target.value })}
+                          className="h-8 text-sm pl-6 font-semibold"
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-lg font-bold text-red-500">
+                        - ₹ {(emp.monthly_benefits_deduction || 0).toLocaleString('en-IN')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-4">
                 {empPayslips.length === 0 ? (
                   <div className="text-center text-muted-foreground p-8 border rounded-2xl">No payslips found for this employee.</div>

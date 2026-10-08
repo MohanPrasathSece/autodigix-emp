@@ -11,6 +11,7 @@ export const useEmployees = () => {
           id, name, email, password, role, department, status, attendance, 
           avatarColor:avatar_color, initials, avatarUrl:avatar_url, 
           phone, location, manager_id, created_at,
+          base_salary, monthly_allowance, monthly_benefits_deduction,
           emergency_contact_name, emergency_contact_phone, access_level,
           absentDates:absent_dates(date, subject)
         `);

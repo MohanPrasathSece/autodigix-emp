@@ -22,7 +22,10 @@ export function AddEmployeeView() {
     email: "",
     department: "",
     role: "",
-    password: "AutoDigix2026!"
+    password: "AutoDigix2026!",
+    monthly_base_salary: "85000",
+    monthly_allowance: "0",
+    monthly_benefits_deduction: "0"
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,6 +47,9 @@ export function AddEmployeeView() {
 
     const hashedPassword = await hashPassword(formData.password);
 
+    const monthlySalary = Number(formData.monthly_base_salary || 0);
+    const annualBaseSalary = monthlySalary * 12;
+
     addEmployeeMutation.mutate(
       {
         id: newId,
@@ -55,14 +61,26 @@ export function AddEmployeeView() {
         status: "Active",
         attendance: 100,
         avatar_color: "from-blue-500 to-indigo-500", // Default color
-        initials: initials
+        initials: initials,
+        base_salary: annualBaseSalary,
+        monthly_allowance: Number(formData.monthly_allowance || 0),
+        monthly_benefits_deduction: Number(formData.monthly_benefits_deduction || 0)
       },
       {
         onSuccess: () => {
           toast.success("Employee Profile Created", {
             description: "The employee has been added to the system and a welcome email was sent."
           });
-          setFormData({ name: "", email: "", department: "", role: "", password: "AutoDigix2026!" });
+          setFormData({
+            name: "",
+            email: "",
+            department: "",
+            role: "",
+            password: "AutoDigix2026!",
+            monthly_base_salary: "85000",
+            monthly_allowance: "0",
+            monthly_benefits_deduction: "0"
+          });
         }
       }
     );
@@ -178,10 +196,43 @@ export function AddEmployeeView() {
               <Input type="date" required />
             </div>
             <div className="space-y-2">
-              <Label>Base Salary (Monthly) <span className="text-red-500">*</span></Label>
+              <Label>Base Salary (Monthly ₹) <span className="text-red-500">*</span></Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
-                <Input type="number" required placeholder="85000" className="pl-7" />
+                <Input 
+                  type="number" 
+                  required 
+                  placeholder="85000" 
+                  className="pl-7" 
+                  value={formData.monthly_base_salary}
+                  onChange={e => setFormData({ ...formData, monthly_base_salary: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Monthly Allowance (₹)</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+                <Input 
+                  type="number" 
+                  placeholder="5000" 
+                  className="pl-7" 
+                  value={formData.monthly_allowance}
+                  onChange={e => setFormData({ ...formData, monthly_allowance: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Monthly Benefits / Insurance Deduction (₹)</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+                <Input 
+                  type="number" 
+                  placeholder="2000" 
+                  className="pl-7" 
+                  value={formData.monthly_benefits_deduction}
+                  onChange={e => setFormData({ ...formData, monthly_benefits_deduction: e.target.value })}
+                />
               </div>
             </div>
           </div>

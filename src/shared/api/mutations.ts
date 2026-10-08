@@ -4,15 +4,34 @@ import { supabase } from '@/lib/supabaseClient';
 import { serverLog } from '../lib/logger';
 import { getLocalToday } from '../lib/dateUtils';
 import confetti from 'canvas-confetti';
+import { generatePayslipPDFBase64 } from '../lib/pdfGenerator';
 
-const sendEmail = async (to: string, subject: string, text: string) => {
+const sendEmail = async (
+  to: string,
+  subject: string,
+  text: string,
+  html?: string,
+  pdfBase64?: string,
+  filename?: string
+) => {
   try {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    await fetch(`${apiUrl}/api/send-email`, {
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const res = await fetch(`${apiUrl}/api/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, subject, text, html: `<p>${text}</p>` }),
+      body: JSON.stringify({
+        to,
+        subject,
+        text,
+        html: html || `<p>${text.replace(/\n/g, '<br/>')}</p>`,
+        pdfBase64,
+        filename,
+      }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.warn('Failed to dispatch email:', err);
+    }
   } catch (error) {
     console.error('Failed to dispatch email:', error);
   }
@@ -106,6 +125,9 @@ export const useAddEmployee = () => {
       attendance: number;
       avatar_color: string;
       initials: string;
+      base_salary?: number;
+      monthly_allowance?: number;
+      monthly_benefits_deduction?: number;
       emergency_contact_name?: string;
       emergency_contact_phone?: string;
       access_level?: string;
@@ -420,15 +442,70 @@ export const useRunPayroll = () => {
 
       if (error) throw new Error(error.message);
       
-      // 4. Send emails
+      // 4. Generate PDF Payslips & Send emails
       for (const emp of employees) {
         const p = payslips.find(ps => ps.employee_id === emp.id);
         if (p) {
-          sendEmail(
-            emp.email,
-            `Payslip for ${period}`,
-            `Hi ${emp.name},\n\nYour payroll for ${period} has been processed.\nGross: $${p.gross}\nNet: $${p.net}\n\nYou can view the full breakdown in your employee portal.`
-          );
+          try {
+            const pdfBase64 = generatePayslipPDFBase64({
+              employeeName: emp.name,
+              employeeId: emp.id,
+              email: emp.email,
+              department: emp.department,
+              role: emp.role,
+              period: period,
+              base_amount: p.base_amount,
+              allowances_amount: p.allowances_amount,
+              unpaid_leave_amount: p.unpaid_leave_amount,
+              gross: p.gross,
+              tax_amount: p.tax_amount,
+              benefits_amount: p.benefits_amount,
+              net: p.net
+            });
+
+            const emailHtml = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 12px; background-color: #ffffff;">
+                <div style="background-color: #1e293b; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Autodigix HR</h1>
+                  <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;">Official Payslip Statement for ${period}</p>
+                </div>
+                <div style="padding: 24px; color: #334155; line-height: 1.6;">
+                  <p style="font-size: 16px; font-weight: bold; margin-top: 0;">Hi ${emp.name},</p>
+                  <p>Your monthly salary for <strong>${period}</strong> has been successfully processed.</p>
+                  <div style="background-color: #f8fafc; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                      <tr>
+                        <td style="padding: 6px 0; color: #64748b;">Gross Salary:</td>
+                        <td style="padding: 6px 0; font-weight: bold; text-align: right;">₹ ${p.gross.toLocaleString('en-IN')}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 6px 0; color: #64748b;">Total Deductions:</td>
+                        <td style="padding: 6px 0; font-weight: bold; text-align: right; color: #ef4444;">- ₹ ${(p.gross - p.net).toLocaleString('en-IN')}</td>
+                      </tr>
+                      <tr style="border-top: 1px solid #e2e8f0;">
+                        <td style="padding: 10px 0 0 0; font-weight: bold; color: #0f172a; font-size: 16px;">Net Take-Home Pay:</td>
+                        <td style="padding: 10px 0 0 0; font-weight: bold; text-align: right; color: #16a34a; font-size: 18px;">₹ ${p.net.toLocaleString('en-IN')}</td>
+                      </tr>
+                    </table>
+                  </div>
+                  <p style="font-size: 14px;">📄 <strong>Your detailed payslip is attached to this email as a PDF document.</strong> You can also view and download it anytime from your employee portal profile.</p>
+                  <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+                  <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is an automated system email from Autodigix HR.</p>
+                </div>
+              </div>
+            `;
+
+            await sendEmail(
+              emp.email,
+              `Payslip Statement - ${period}`,
+              `Hi ${emp.name},\n\nYour payroll for ${period} has been processed.\nGross: ₹${p.gross}\nNet: ₹${p.net}\n\nPlease find your attached PDF payslip.`,
+              emailHtml,
+              pdfBase64,
+              `Payslip_${period.replace(/\s+/g, '_')}_${emp.name.replace(/\s+/g, '_')}.pdf`
+            );
+          } catch (pdfErr) {
+            console.error(`Failed to generate/send PDF payslip for ${emp.name}:`, pdfErr);
+          }
         }
       }
 
@@ -472,6 +549,9 @@ export const useUpdateEmployee = () => {
       department: string;
       role: string;
       status: string;
+      base_salary: number;
+      monthly_allowance: number;
+      monthly_benefits_deduction: number;
       emergency_contact_name: string;
       emergency_contact_phone: string;
     }>) => {

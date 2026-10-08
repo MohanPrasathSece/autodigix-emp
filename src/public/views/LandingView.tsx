@@ -102,7 +102,7 @@ export function LandingView() {
 
     setIsContactLoading(true);
     try {
-      // Save contact message to Supabase
+      // 1. Save contact message to Supabase
       const { error } = await supabase
         .from('contact_messages')
         .insert([
@@ -114,6 +114,38 @@ export function LandingView() {
         ]);
 
       if (error) throw error;
+
+      // 2. Dispatch notification email to mohanprasath563@gmail.com
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        await fetch(`${apiUrl}/api/send-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: 'mohanprasath563@gmail.com',
+            subject: `New Support Inquiry from ${contactName}`,
+            text: `Name: ${contactName}\nEmail: ${contactEmail}\nMessage:\n${contactMessage}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+                <div style="background-color: #1e293b; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <h2 style="color: #ffffff; margin: 0; font-size: 20px;">New Support / Contact Inquiry</h2>
+                  <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;">Autodigix HR Landing Page</p>
+                </div>
+                <div style="padding: 24px; color: #334155; line-height: 1.6;">
+                  <p style="margin-top: 0;"><strong>Sender Name:</strong> ${contactName}</p>
+                  <p><strong>Sender Email:</strong> <a href="mailto:${contactEmail}" style="color: #2563eb;">${contactEmail}</a></p>
+                  <p><strong>Message:</strong></p>
+                  <div style="background-color: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #3b82f6; white-space: pre-wrap; font-size: 14px; color: #0f172a;">${contactMessage}</div>
+                  <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+                  <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">Autodigix HR System Notification</p>
+                </div>
+              </div>
+            `
+          })
+        });
+      } catch (emailErr) {
+        console.error('Failed to dispatch contact email notification:', emailErr);
+      }
 
       toast.success("Message sent successfully! We'll get back to you soon.");
       setContactName("");

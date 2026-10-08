@@ -7,14 +7,7 @@ export const useEmployees = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('employees')
-        .select(`
-          id, name, email, password, role, department, status, attendance, 
-          avatarColor:avatar_color, initials, avatarUrl:avatar_url, 
-          phone, location, manager_id, created_at,
-          base_salary, monthly_allowance, monthly_benefits_deduction,
-          emergency_contact_name, emergency_contact_phone, access_level,
-          absentDates:absent_dates(date, subject)
-        `);
+        .select('*, avatarColor:avatar_color, avatarUrl:avatar_url, absentDates:absent_dates(date, subject)');
       if (error) throw new Error(error.message);
       return data;
     },

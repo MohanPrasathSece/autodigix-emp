@@ -404,7 +404,7 @@ export const useRunPayroll = () => {
       const { data: employees, error: fetchError } = await supabase
         .from('employees')
         .select('id, name, email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction')
-        .neq('status', 'Remote');
+        .neq('status', 'Terminated');
 
       if (fetchError) throw new Error(fetchError.message);
       

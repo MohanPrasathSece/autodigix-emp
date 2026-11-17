@@ -99,13 +99,19 @@ export function AdminDashboardView() {
     };
   });
 
-  const handleApproveLeave = (id: string, name: string) => {
-    updateLeaveStatus.mutate({ id, status: 'Approved' }, {
+  const handleApproveLeave = (leave: any) => {
+    const emp = employees.find((e: any) => e.id === leave.employee_id);
+    updateLeaveStatus.mutate({ 
+      id: leave.id, 
+      status: 'Approved',
+      email: emp?.email,
+      name: leave.name
+    }, {
       onSuccess: () => {
-        toast.success("Leave Approved", { description: `${name}'s leave has been approved.` });
+        toast.success("Leave Approved", { description: `${leave.name}'s leave has been approved.` });
         addNotification.mutate({
           title: "Leave Approved",
-          body: `You approved a leave request for ${name}.`,
+          body: `You approved a leave request for ${leave.name}.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           tone: "success",
           target_id: "admin"
@@ -119,13 +125,19 @@ export function AdminDashboardView() {
     });
   };
 
-  const handleDeclineLeave = (id: string, name: string) => {
-    updateLeaveStatus.mutate({ id, status: 'Rejected' }, {
+  const handleDeclineLeave = (leave: any) => {
+    const emp = employees.find((e: any) => e.id === leave.employee_id);
+    updateLeaveStatus.mutate({ 
+      id: leave.id, 
+      status: 'Rejected',
+      email: emp?.email,
+      name: leave.name
+    }, {
       onSuccess: () => {
-        toast.success("Leave Declined", { description: `${name}'s leave has been rejected.` });
+        toast.success("Leave Declined", { description: `${leave.name}'s leave has been rejected.` });
         addNotification.mutate({
           title: "Leave Declined",
-          body: `You declined a leave request for ${name}.`,
+          body: `You declined a leave request for ${leave.name}.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           tone: "warning",
           target_id: "admin"
@@ -260,7 +272,7 @@ export function AdminDashboardView() {
                       <Button 
                         size="sm" 
                         className="h-7 w-full text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700"
-                        onClick={() => handleApproveLeave(leave.id, leave.name)}
+                        onClick={() => handleApproveLeave(leave)}
                         disabled={updateLeaveStatus.isPending}
                       >
                         Approve
@@ -269,7 +281,7 @@ export function AdminDashboardView() {
                         size="sm" 
                         variant="outline" 
                         className="h-7 w-full text-xs rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950"
-                        onClick={() => handleDeclineLeave(leave.id, leave.name)}
+                        onClick={() => handleDeclineLeave(leave)}
                         disabled={updateLeaveStatus.isPending}
                       >
                         Deny

@@ -1,348 +1,310 @@
+import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { getLocalToday, parseLeaveDate } from "@/shared/lib/dateUtils";
-import { useLeaveRequests, usePayrollTrend, useAttendanceHistory, useEmployees, usePayslips } from "@/shared/api/queries";
-import { downloadExcelReport } from "@/shared/lib/excelReport";
-import { FileSpreadsheet, Download, FileDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { useAttendanceHistory, useEmployees } from "@/shared/api/queries";
+import { Download, Search, Calendar, Clock, UserCheck, Users } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  AreaChart,
-  Area
-} from "recharts";
-
-const STATUS_COLOR_MAP: Record<string, string> = {
-  Approved: "#10b981",
-  Pending: "#f59e0b",
-  Rejected: "#ef4444",
-};
-
-function downloadFile(content: string, filename: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 export function ReportsView() {
-  const { data: leaveRequests = [] } = useLeaveRequests();
-  const { data: payrollTrend = [] } = usePayrollTrend();
-  const { data: attendanceHistory = [] } = useAttendanceHistory();
-  const { data: employees = [] } = useEmployees();
-  const { data: payslips = [] } = usePayslips();
+  const { data: employees = [], isLoading: empLoading } = useEmployees();
+  const { data: attendanceHistory = [], isLoading: attLoading } = useAttendanceHistory();
 
-  // 1. Compute Leave Status Data dynamically
-  const approved = leaveRequests.filter((r: any) => r.status === 'Approved').length;
-  const pending = leaveRequests.filter((r: any) => r.status === 'Pending').length;
-  const rejected = leaveRequests.filter((r: any) => r.status === 'Rejected').length;
-  const leaveStatusData = [
-    { name: "Approved", value: approved },
-    { name: "Pending", value: pending },
-    { name: "Rejected", value: rejected },
-  ].filter(d => d.value > 0);
-
-  // 2. Compute Payroll Data
-  const payrollData = payrollTrend.map((p: any) => ({ month: p.month, cost: p.payroll }));
-
-  // 3. Compute Work Hours & Attendance Data
-  // Stable denominator: every non-terminated employee counts as headcount,
-  // regardless of their current Remote/On Leave status, so the rate does not
-  // inflate when people are simply working from home or on leave.
-  const activeEmployees = employees.filter((e: any) => e.status !== "Terminated");
-  const totalHeadcount = activeEmployees.length || 1;
-  const activeIds = new Set(activeEmployees.map((e: any) => e.id));
-  const todayKey = getLocalToday();
-
-  const attendanceByDate = attendanceHistory.reduce((acc: Record<string, Set<string>>, curr: any) => {
-    const d = String(curr.date ?? "").slice(0, 10); // 'YYYY-MM-DD'
-    if (!d || d > todayKey) return acc; // ignore future/malformed dates
-    if (!activeIds.has(curr.employee_id)) return acc;
-    if (!acc[d]) acc[d] = new Set();
-    acc[d].add(curr.employee_id);
-    return acc;
-  }, {});
-
-  const attendanceRateData = Object.keys(attendanceByDate).sort().map((date) => {
-    const presentCount = attendanceByDate[date].size;
-    const rate = Math.max(0, Math.min(100, Math.round((presentCount / totalHeadcount) * 100)));
-    const parsed = parseLeaveDate(date);
-    const month = parsed
-      ? parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      : date;
-    return { month, rate };
-  });
-
-  // Average daily work hours, ordered Mon → Sun and derived from real attendance rows.
-  const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const workHoursAccumulator: Record<string, { sum: number; count: number }> = {};
-  attendanceHistory.forEach((curr: any) => {
-    const parsed = parseLeaveDate(curr.date);
-    if (!parsed) return;
-    const day = parsed.toLocaleDateString('en-US', { weekday: 'short' });
-    if (!workHoursAccumulator[day]) workHoursAccumulator[day] = { sum: 0, count: 0 };
-    workHoursAccumulator[day].sum += Number(curr.hours) || 0;
-    workHoursAccumulator[day].count += 1;
-  });
-  const workHoursData = DAY_ORDER
-    .filter((day) => workHoursAccumulator[day])
-    .map((day) => ({
-      day,
-      hours: Number((workHoursAccumulator[day].sum / workHoursAccumulator[day].count).toFixed(2)),
-    }));
-
-  const exportCSV = () => {
-    const dateStr = getLocalToday();
-    const rows: string[][] = [];
-
-    // Section 1: Leave Requests
-    rows.push(['=== LEAVE REQUESTS ===']);
-    rows.push(['Employee', 'Type', 'From', 'To', 'Days', 'Status']);
-    (leaveRequests as any[]).forEach((r: any) => {
-      rows.push([r.name, r.type, r.from, r.to, r.days, r.status]);
-    });
-    rows.push([]);
-
-    // Section 2: Attendance History
-    rows.push(['=== ATTENDANCE HISTORY ===']);
-    rows.push(['Date', 'Employee ID', 'Status', 'Hours']);
-    (attendanceHistory as any[]).forEach((h: any) => {
-      rows.push([h.date, h.employee_id, h.status, h.hours ?? 0]);
-    });
-    rows.push([]);
-
-    // Section 3: Payroll Trend
-    rows.push(['=== PAYROLL TREND ===']);
-    rows.push(['Month', 'Total Payroll']);
-    (payrollTrend as any[]).forEach((p: any) => {
-      rows.push([p.month, p.payroll]);
-    });
-
-    const csv = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    downloadFile(csv, `harmony-hr-report-${dateStr}.csv`, 'text/csv;charset=utf-8;');
-  };
-
-  const exportPDF = () => {
-    const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
-    const leaveRows = (leaveRequests as any[]).map((r: any) =>
-      `<tr><td>${r.name}</td><td>${r.type}</td><td>${r.from}</td><td>${r.to}</td><td>${r.days}</td><td>${r.status}</td></tr>`
-    ).join('');
-
-    const html = `<!DOCTYPE html><html><head><title>Harmony HR Report</title>
-      <style>body{font-family:sans-serif;padding:32px;color:#111}h1{color:#4f46e5}h2{color:#374151;margin-top:24px}
-      table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left}
-      th{background:#f9fafb;font-weight:600}tr:nth-child(even){background:#f9fafb}
-      .footer{margin-top:32px;font-size:12px;color:#9ca3af}</style></head>
-      <body><h1>&#x1F4CA; Harmony HR — Organization Report</h1><p>Generated on ${dateStr}</p>
-      <h2>Leave Requests</h2>
-      <table><thead><tr><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th></tr></thead>
-      <tbody>${leaveRows || '<tr><td colspan=6>No data</td></tr>'}</tbody></table>
-      <h2>Summary</h2>
-      <table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>
-      <tr><td>Total Leave Requests</td><td>${(leaveRequests as any[]).length}</td></tr>
-      <tr><td>Approved</td><td>${(leaveRequests as any[]).filter((r:any)=>r.status==='Approved').length}</td></tr>
-      <tr><td>Pending</td><td>${(leaveRequests as any[]).filter((r:any)=>r.status==='Pending').length}</td></tr>
-      <tr><td>Rejected</td><td>${(leaveRequests as any[]).filter((r:any)=>r.status==='Rejected').length}</td></tr>
-      <tr><td>Attendance Records</td><td>${(attendanceHistory as any[]).length}</td></tr>
-      </tbody></table>
-      <div class="footer">Harmony HR — Confidential</div>
-      </body></html>`;
-
-    const win = window.open('', '_blank', 'width=900,height=700');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      win.focus();
-      setTimeout(() => win.print(), 500);
+  // Generate options for the last 12 months (e.g. "2026-11", label "November 2026")
+  const monthOptions = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      list.push({ value: val, label });
     }
+    return list;
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(monthOptions[0]?.value || "");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const activeEmployees = useMemo(() => {
+    return employees.filter((e: any) => e.status !== "Terminated");
+  }, [employees]);
+
+  // Compute monthly attendance aggregates per employee
+  const reportData = useMemo(() => {
+    if (!selectedMonth) return [];
+
+    return activeEmployees.map((emp: any) => {
+      // Find all attendance records for this employee in the selected month
+      const empLogs = (attendanceHistory as any[]).filter((h: any) => {
+        if (h.employee_id !== emp.id) return false;
+        const dStr = String(h.date || "").slice(0, 7);
+        return dStr === selectedMonth;
+      });
+
+      // Count distinct days present
+      const uniqueDates = new Set(
+        empLogs
+          .filter((h: any) => h.status === 'Clocked In' || h.status === 'Clocked Out' || Number(h.hours) > 0)
+          .map((h: any) => String(h.date).slice(0, 10))
+      );
+      const daysPresent = uniqueDates.size;
+
+      // Sum total hours worked
+      const totalHours = empLogs.reduce((acc: number, curr: any) => {
+        return acc + (Number(curr.hours) || 0);
+      }, 0);
+
+      const avgHoursPerDay = daysPresent > 0 ? (totalHours / daysPresent).toFixed(1) : "0.0";
+
+      return {
+        id: emp.id,
+        name: emp.name,
+        email: emp.email,
+        department: emp.department || "General",
+        role: emp.role || "Staff",
+        initials: emp.initials || emp.name?.substring(0, 2).toUpperCase() || "EM",
+        avatarColor: emp.avatarColor || emp.avatar_color || "from-blue-500 to-indigo-500",
+        avatarUrl: emp.avatarUrl || emp.avatar_url,
+        daysPresent,
+        totalHours: Math.round(totalHours * 10) / 10,
+        avgHoursPerDay
+      };
+    });
+  }, [activeEmployees, attendanceHistory, selectedMonth]);
+
+  // Filtered rows
+  const filteredRows = useMemo(() => {
+    if (!searchQuery.trim()) return reportData;
+    const q = searchQuery.toLowerCase();
+    return reportData.filter((r) => 
+      r.name.toLowerCase().includes(q) ||
+      r.department.toLowerCase().includes(q) ||
+      r.role.toLowerCase().includes(q) ||
+      r.id.toLowerCase().includes(q)
+    );
+  }, [reportData, searchQuery]);
+
+  // Overall totals for the month
+  const totalDaysAcrossTeam = useMemo(() => {
+    return reportData.reduce((acc, r) => acc + r.daysPresent, 0);
+  }, [reportData]);
+
+  const totalHoursAcrossTeam = useMemo(() => {
+    return Math.round(reportData.reduce((acc, r) => acc + r.totalHours, 0) * 10) / 10;
+  }, [reportData]);
+
+  const selectedMonthLabel = useMemo(() => {
+    return monthOptions.find((m) => m.value === selectedMonth)?.label || selectedMonth;
+  }, [monthOptions, selectedMonth]);
+
+  // Export to CSV
+  const handleExportCSV = () => {
+    if (reportData.length === 0) {
+      toast.info("No data to export.");
+      return;
+    }
+
+    const headers = ["Employee ID", "Employee Name", "Department", "Role", "Month", "Days Present", "Total Hours Worked", "Avg Hours/Day"];
+    const csvRows = [
+      headers.join(","),
+      ...reportData.map((r) => [
+        `"${r.id}"`,
+        `"${r.name}"`,
+        `"${r.department}"`,
+        `"${r.role}"`,
+        `"${selectedMonthLabel}"`,
+        r.daysPresent,
+        r.totalHours,
+        r.avgHoursPerDay
+      ].join(","))
+    ];
+
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `monthly-attendance-report-${selectedMonth}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Attendance report exported to CSV.");
   };
 
-  const exportExcel = () => {
-    try {
-      downloadExcelReport({
-        employees: employees as any[],
-        attendanceHistory: attendanceHistory as any[],
-        leaveRequests: leaveRequests as any[],
-        payslips: payslips as any[],
-      });
-      toast.success("Excel workbook exported", {
-        description: "Multi-tab report with attendance, hours, leave and LOP data.",
-      });
-    } catch (err: any) {
-      toast.error(`Failed to export Excel: ${err.message}`);
-    }
-  };
+  const isLoading = empLoading || attLoading;
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       <PageHeader
-        title="Organization Reports"
-        description="Detailed analytics and reports for HR management."
+        title="Monthly Attendance Reports"
+        description={`Summary of days present and total hours worked for ${selectedMonthLabel}.`}
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" className="rounded-xl" onClick={exportPDF}>
-              <Download className="mr-2 size-4" /> Download PDF
-            </Button>
-            <Button variant="outline" className="rounded-xl" onClick={exportCSV}>
-              <FileSpreadsheet className="mr-2 size-4" /> Export CSV
-            </Button>
-            <Button className="rounded-xl" onClick={exportExcel}>
-              <FileDown className="mr-2 size-4" /> Export Excel
+          <div className="flex items-center gap-3">
+            <div className="w-52">
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="h-10 rounded-xl bg-card border shadow-sm">
+                  <Calendar className="mr-2 size-4 text-muted-foreground" />
+                  <SelectValue placeholder="Select Month" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  {monthOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" className="rounded-xl h-10" onClick={handleExportCSV}>
+              <Download className="mr-1.5 size-4" /> Export CSV
             </Button>
           </div>
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Attendance Trend */}
-        <div className="rounded-2xl border bg-card p-6 shadow-soft">
-          <div className="mb-6">
-            <h2 className="text-base font-bold">Average Attendance Rate</h2>
-            <p className="text-sm text-muted-foreground">Monthly percentage of active employees present</p>
-          </div>
-          <div className="h-[300px] w-full">
-            {attendanceRateData.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                No attendance data recorded yet.
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={attendanceRateData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} fontSize={12} stroke="var(--muted-foreground)" />
-                  <YAxis 
-                    domain={[0, 100]}
-                    axisLine={false} 
-                    tickLine={false} 
-                    fontSize={12} 
-                    stroke="var(--muted-foreground)"
-                    tickFormatter={(val) => `${val}%`}
-                  />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)" }}
-                    formatter={(value: number) => [`${value}%`, "Attendance"]}
-                  />
-                  <Area type="monotone" dataKey="rate" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorRate)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* Work Hours */}
-        <div className="rounded-2xl border bg-card p-6 shadow-soft">
-          <div className="mb-6">
-            <h2 className="text-base font-bold">Average Daily Work Hours</h2>
-            <p className="text-sm text-muted-foreground">Average hours logged per employee by day</p>
-          </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={workHoursData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} barSize={32}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="day" axisLine={false} tickLine={false} fontSize={12} stroke="var(--muted-foreground)" />
-                <YAxis axisLine={false} tickLine={false} fontSize={12} stroke="var(--muted-foreground)" domain={[0, 10]} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)" }}
-                  formatter={(value: number) => [`${value} hrs`, "Avg Hours"]}
-                  cursor={{ fill: "var(--muted)" }}
-                />
-                <Bar dataKey="hours" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Leave Status Distribution */}
-        <div className="rounded-2xl border bg-card p-6 shadow-soft lg:col-span-1 flex flex-col md:flex-row gap-8 items-center justify-between">
-          <div className="flex-1 w-full">
-            <h2 className="text-base font-bold">Leave Request Status</h2>
-            <p className="text-sm text-muted-foreground mb-6">Overview of all leave requests this year</p>
-            
-            <div className="space-y-4">
-              {leaveStatusData.length === 0 ? (
-                <div className="text-sm text-muted-foreground pt-4">No leave requests found.</div>
-              ) : leaveStatusData.map((item) => (
-                <div key={item.name} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
-                  <div className="flex items-center gap-2">
-                    <div className="size-3 rounded-full" style={{ backgroundColor: STATUS_COLOR_MAP[item.name] }} />
-                    <span className="text-sm font-medium">{item.name}</span>
-                  </div>
-                  <span className="text-sm font-bold">{item.value} reqs</span>
-                </div>
-              ))}
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="rounded-2xl border bg-card p-5 shadow-soft">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Employees</p>
+            <div className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+              <Users className="size-4" />
             </div>
           </div>
-
-          <div className="h-[200px] w-full md:w-1/2">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={leaveStatusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {leaveStatusData.map((entry) => (
-                    <Cell key={`cell-${entry.name}`} fill={STATUS_COLOR_MAP[entry.name]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)" }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          <p className="text-2xl font-bold mt-2">{activeEmployees.length}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Tracked this month</p>
         </div>
 
-        {/* Payroll Trend */}
-        <div className="rounded-2xl border bg-card p-6 shadow-soft lg:col-span-1">
-          <div className="mb-6">
-            <h2 className="text-base font-bold">Monthly Payroll Expense</h2>
-            <p className="text-sm text-muted-foreground">Total salary payouts over the year</p>
+        <div className="rounded-2xl border bg-card p-5 shadow-soft">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Days Present</p>
+            <div className="grid size-9 place-items-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <UserCheck className="size-4" />
+            </div>
           </div>
-          <div className="h-[200px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={payrollData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} fontSize={12} stroke="var(--muted-foreground)" />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  fontSize={12} 
-                  stroke="var(--muted-foreground)"
-                  tickFormatter={(val) => `₹${val / 1000}k`}
-                />
-                <Tooltip 
-                  contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)" }}
-                  formatter={(value: number) => [`₹${value.toLocaleString('en-IN')}`, "Cost"]}
-                />
-                <Line type="monotone" dataKey="cost" stroke="var(--primary)" strokeWidth={3} dot={{ r: 4, fill: "var(--primary)" }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{totalDaysAcrossTeam}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Across entire team</p>
         </div>
+
+        <div className="rounded-2xl border bg-card p-5 shadow-soft">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Working Hours</p>
+            <div className="grid size-9 place-items-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <Clock className="size-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-2">{totalHoursAcrossTeam.toFixed(1)} hrs</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Logged in {selectedMonthLabel}</p>
+        </div>
+      </div>
+
+      {/* Main Table Card */}
+      <div className="rounded-2xl border bg-card shadow-soft overflow-hidden">
+        {/* Search Bar & Header */}
+        <div className="p-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20">
+          <div className="relative w-full max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search employee by name, role, or ID..."
+              className="h-10 rounded-xl pl-9 bg-card"
+            />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">
+            Showing {filteredRows.length} of {activeEmployees.length} employees
+          </span>
+        </div>
+
+        {/* Attendance Summary Table */}
+        <Table>
+          <TableHeader>
+            <TableRow className="border-b hover:bg-transparent">
+              <TableHead className="pl-6 text-xs uppercase tracking-wider font-semibold">Employee</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider font-semibold">Department & Role</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider font-semibold text-center">Days Present</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider font-semibold text-center">Total Hours Worked</TableHead>
+              <TableHead className="pr-6 text-xs uppercase tracking-wider font-semibold text-right">Avg Hours / Day</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={5} className="py-12 text-center text-sm text-muted-foreground animate-pulse">
+                  Loading attendance records...
+                </TableCell>
+              </TableRow>
+            ) : filteredRows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="py-12 text-center text-sm text-muted-foreground">
+                  No attendance records found for {selectedMonthLabel}.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredRows.map((row) => (
+                <TableRow key={row.id} className="transition-colors hover:bg-muted/30">
+                  {/* Employee Name & Avatar */}
+                  <TableCell className="pl-6 py-4">
+                    <div className="flex items-center gap-3">
+                      {row.avatarUrl ? (
+                        <img
+                          src={row.avatarUrl}
+                          alt={row.name}
+                          className="size-10 rounded-xl object-cover ring-1 ring-border"
+                        />
+                      ) : (
+                        <div
+                          className={cn(
+                            "grid size-10 place-items-center rounded-xl bg-gradient-to-br text-sm font-bold text-white shadow-sm shrink-0",
+                            row.avatarColor
+                          )}
+                        >
+                          {row.initials}
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-semibold text-sm text-foreground">{row.name}</p>
+                        <p className="text-xs text-muted-foreground">{row.id} · {row.email}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  {/* Department & Role */}
+                  <TableCell className="py-4">
+                    <Badge variant="outline" className="text-xs font-medium rounded-md px-2 py-0.5 mb-1">
+                      {row.department}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground">{row.role}</p>
+                  </TableCell>
+
+                  {/* Days Present */}
+                  <TableCell className="text-center py-4">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      {row.daysPresent} {row.daysPresent === 1 ? "day" : "days"}
+                    </span>
+                  </TableCell>
+
+                  {/* Total Hours Worked */}
+                  <TableCell className="text-center py-4">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                      {row.totalHours.toFixed(1)} hrs
+                    </span>
+                  </TableCell>
+
+                  {/* Avg Hours / Day */}
+                  <TableCell className="pr-6 py-4 text-right">
+                    <span className="text-sm font-semibold text-muted-foreground">
+                      {row.avgHoursPerDay} hrs/day
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

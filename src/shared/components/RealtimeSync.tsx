@@ -1,11 +1,20 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { checkAndProcessMonthEndPayroll } from '../lib/monthEndPayroll';
 
 export function RealtimeSync() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    // Automatically check and process month-end payroll & email payslips if due
+    checkAndProcessMonthEndPayroll().then((result) => {
+      if (result.processed) {
+        queryClient.invalidateQueries({ queryKey: ['payslips'] });
+        queryClient.invalidateQueries({ queryKey: ['payrollTrend'] });
+      }
+    });
+
     const channel = supabase.channel('schema-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
         // Invalidate queries based on the table that changed

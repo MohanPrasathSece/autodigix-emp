@@ -32,8 +32,14 @@ export function ApprovalsPage() {
   const handleConfirm = () => {
     if (!selectedRequest || !confirmAction) return;
     const newStatus = confirmAction === "Approve" ? "Approved" : "Rejected";
+    const emp = employees.find((e: any) => e.id === selectedRequest.employee_id);
     updateStatus.mutate(
-      { id: selectedRequest.id, status: newStatus },
+      { 
+        id: selectedRequest.id, 
+        status: newStatus,
+        email: emp?.email,
+        name: selectedRequest.name
+      },
       {
         onSuccess: () => {
           toast.success(`${confirmAction === "Approve" ? "Approved" : "Declined"} ${selectedRequest.name}'s request`);

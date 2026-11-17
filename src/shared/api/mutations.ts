@@ -91,15 +91,58 @@ export const useUpdateLeaveRequestStatus = () => {
 
       serverLog('Leave Request Update', { id: result.id, newStatus: result.status, targetEmployee: result.name || 'Unknown' }, 'success');
 
-      if (result.email && result.name) {
+      // Send confirmation email ONLY to the applied employee, NEVER to admin.
+      const leaveReq = result.data?.[0];
+      let targetEmail = result.email;
+      let targetName = result.name || leaveReq?.name || 'Employee';
+
+      if (!targetEmail && leaveReq?.employee_id) {
+        try {
+          const { data: emp } = await supabase
+            .from('employees')
+            .select('email, name, payslip_email')
+            .eq('id', leaveReq.employee_id)
+            .maybeSingle();
+          if (emp?.email) targetEmail = emp.email;
+          if (emp?.name && !result.name) targetName = emp.name;
+        } catch (lookupErr) {
+          console.warn('Could not fetch employee email for leave notification:', lookupErr);
+        }
+      }
+
+      if (targetEmail) {
+        const isApproved = result.status === 'Approved';
+        const typeStr = leaveReq?.type || 'Leave';
+        const dateStr = leaveReq ? `${leaveReq.from_date} to ${leaveReq.to_date}` : '';
+        const daysStr = leaveReq ? `${leaveReq.days} day(s)` : '';
+
         sendEmail(
-          result.email,
-          `Leave Request ${result.status}`,
-          `Hi ${result.name},\n\nYour leave request has been ${result.status.toLowerCase()}.`
+          targetEmail,
+          `Leave Request ${result.status}: ${typeStr}`,
+          `Hi ${targetName},\n\nYour leave request for ${typeStr} (${dateStr}${daysStr ? `, ${daysStr}` : ''}) has been ${result.status.toLowerCase()} by HR Management.`,
+          `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+              <div style="background-color: ${isApproved ? '#065f46' : '#991b1b'}; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Leave Request ${result.status}</h2>
+                <p style="color: #e2e8f0; margin: 5px 0 0 0; font-size: 14px;">Autodigix HR Official Decision</p>
+              </div>
+              <div style="padding: 24px; color: #334155; line-height: 1.6;">
+                <p style="font-size: 16px; font-weight: bold; margin-top: 0;">Hi ${targetName},</p>
+                <p>Your leave request has been reviewed and <strong style="color: ${isApproved ? '#059669' : '#dc2626'};">${result.status.toUpperCase()}</strong> by HR Management.</p>
+                ${leaveReq ? `
+                  <div style="background-color: #f8fafc; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isApproved ? '#10b981' : '#ef4444'};">
+                    <p style="margin: 0 0 8px 0;"><strong>Leave Type:</strong> ${typeStr}</p>
+                    <p style="margin: 0 0 8px 0;"><strong>Duration:</strong> ${daysStr} (${dateStr})</p>
+                    ${leaveReq.subject ? `<p style="margin: 0 0 8px 0;"><strong>Subject:</strong> ${leaveReq.subject}</p>` : ''}
+                    ${leaveReq.description ? `<p style="margin: 0;"><strong>Reason:</strong> ${leaveReq.description}</p>` : ''}
+                  </div>
+                ` : ''}
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+                <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is an automated notification from Autodigix HR.</p>
+              </div>
+            </div>
+          `
         );
-      } else {
-        // Fallback for demo
-        sendEmail("admin@company.com", `Leave Request ${result.status}`, `A leave request was ${result.status.toLowerCase()}.`);
       }
     },
     onError: (error) => {

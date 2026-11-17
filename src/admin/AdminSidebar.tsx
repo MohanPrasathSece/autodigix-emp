@@ -5,7 +5,6 @@ import {
   CalendarCheck,
   CalendarDays,
   PlaneTakeoff,
-  Wallet,
   BarChart3,
   UserCircle,
   Settings,
@@ -37,7 +36,6 @@ const primary = [
 ];
 
 const secondary = [
-  { title: "Payroll", url: "/admin/payroll", icon: Wallet },
   { title: "Calendar", url: "/admin/calendar", icon: CalendarDays },
   { title: "Reports", url: "/admin/reports", icon: BarChart3 },
   { title: "Holidays", url: "/admin/holidays", icon: Sun },

@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, MoreHorizontal, Mail, Eye, EyeOff, Trash2, Wallet, User } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Mail, Eye, EyeOff, Trash2, Wallet, User, UserPlus, Shield, Phone } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -195,184 +195,251 @@ export function EmployeesPage() {
                 <Plus className="mr-1.5 size-4" /> Add Employee
               </Button>
             </DialogTrigger>
-              <DialogContent className="sm:max-w-3xl">
-              <DialogHeader>
-                <DialogTitle>Add New Employee</DialogTitle>
+              <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl border bg-card shadow-elevated">
+              <DialogHeader className="px-6 py-4 border-b bg-muted/20 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+                    <UserPlus className="size-4" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-lg font-bold">Add New Employee</DialogTitle>
+                    <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                      Enter employee details to generate their profile and portal credentials.
+                    </DialogDescription>
+                  </div>
+                </div>
               </DialogHeader>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                <div className="space-y-4">
-                  <h4 className="text-sm font-semibold text-muted-foreground border-b pb-2">Personal & Account Details</h4>
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Full Name <span className="text-red-500">*</span></Label>
-                    <Input 
-                      id="name" 
-                      placeholder="John Doe" 
-                      value={formData.name}
-                      onChange={e => setFormData({...formData, name: e.target.value})}
-                    />
+
+              <div className="overflow-y-auto px-6 py-5 space-y-5 flex-1 text-left">
+                {/* 1. Basic Information */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <User className="size-3.5 text-primary" />
+                    <span>Basic Information</span>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email Address <span className="text-red-500">*</span></Label>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="john@example.com" 
-                      value={formData.email}
-                      onChange={e => setFormData({...formData, email: e.target.value})}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="payslip_email">Payslip Email</Label>
-                    <Input 
-                      id="payslip_email" 
-                      type="email" 
-                      placeholder="Defaults to work email" 
-                      value={formData.payslip_email}
-                      onChange={e => setFormData({...formData, payslip_email: e.target.value})}
-                    />
-                    <p className="text-[10px] text-muted-foreground">Monthly payslips are emailed here.</p>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Temporary Password</Label>
-                    <div className="relative">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="name" className="text-xs font-medium">Full Name <span className="text-red-500">*</span></Label>
                       <Input 
-                        id="password" 
-                        type={showPassword ? "text" : "password"} 
-                        placeholder="••••••••" 
-                        value={formData.password}
-                        onChange={e => setFormData({...formData, password: e.target.value})}
+                        id="name" 
+                        placeholder="e.g. John Doe" 
+                        value={formData.name}
+                        onChange={e => setFormData({...formData, name: e.target.value})}
+                        className="h-9 text-sm rounded-lg"
                       />
-                      <button 
-                        type="button" 
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                      </button>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">User will be required to change this upon login.</p>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="email" className="text-xs font-medium">Work Email <span className="text-red-500">*</span></Label>
+                      <Input 
+                        id="email" 
+                        type="email" 
+                        placeholder="john@example.com" 
+                        value={formData.email}
+                        onChange={e => setFormData({...formData, email: e.target.value})}
+                        className="h-9 text-sm rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="role" className="text-xs font-medium">Job Title / Role <span className="text-red-500">*</span></Label>
+                      <Input 
+                        id="role" 
+                        placeholder="e.g. Software Engineer" 
+                        value={formData.role}
+                        onChange={e => setFormData({...formData, role: e.target.value})}
+                        className="h-9 text-sm rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="department" className="text-xs font-medium">Department</Label>
+                      <Input 
+                        id="department" 
+                        placeholder="e.g. Engineering" 
+                        value={formData.department}
+                        onChange={e => setFormData({...formData, department: e.target.value})}
+                        className="h-9 text-sm rounded-lg"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <h4 className="text-sm font-semibold text-muted-foreground border-b pb-2">Employment Details</h4>
-                  <div className="grid gap-2">
-                    <Label htmlFor="role">Role / Job Title <span className="text-red-500">*</span></Label>
-                    <Input 
-                      id="role" 
-                      placeholder="e.g. Software Engineer" 
-                      value={formData.role}
-                      onChange={e => setFormData({...formData, role: e.target.value})}
-                    />
+                {/* 2. Access & Credentials */}
+                <div className="space-y-3 pt-3 border-t">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <Shield className="size-3.5 text-primary" />
+                    <span>Access & Credentials</span>
                   </div>
-                  <div className="grid gap-2">
-                    <Label>Access Level</Label>
-                    <Select value={formData.access_level} onValueChange={v => setFormData({...formData, access_level: v})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select access level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="employee">Employee Access</SelectItem>
-                        <SelectItem value="admin">Admin Access</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="department">Department</Label>
-                    <Input 
-                      id="department" 
-                      placeholder="e.g. Engineering" 
-                      value={formData.department}
-                      onChange={e => setFormData({...formData, department: e.target.value})}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Status</Label>
-                    <Select value={formData.status} onValueChange={v => setFormData({...formData, status: v})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Active">Active</SelectItem>
-                        <SelectItem value="Remote">Remote</SelectItem>
-                        <SelectItem value="On Leave">On Leave</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="salary">Monthly Base Salary (₹) <span className="text-red-500">*</span></Label>
-                    <Input 
-                      id="salary" 
-                      type="number" 
-                      min="0"
-                      placeholder="e.g. 85000" 
-                      value={formData.monthly_base_salary}
-                      onChange={e => setFormData({...formData, monthly_base_salary: e.target.value})}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="allowance">Monthly Allowance (₹)</Label>
-                    <Input 
-                      id="allowance" 
-                      type="number" 
-                      min="0"
-                      placeholder="e.g. 5000" 
-                      value={formData.monthly_allowance}
-                      onChange={e => setFormData({...formData, monthly_allowance: e.target.value})}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="benefits">Monthly Benefits Deduction (₹)</Label>
-                    <Input 
-                      id="benefits" 
-                      type="number" 
-                      min="0"
-                      placeholder="e.g. 2000" 
-                      value={formData.monthly_benefits_deduction}
-                      onChange={e => setFormData({...formData, monthly_benefits_deduction: e.target.value})}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="tax">Tax %</Label>
-                    <Input 
-                      id="tax" 
-                      type="number" 
-                      min="0"
-                      step="0.01"
-                      placeholder="e.g. 10" 
-                      value={formData.tax_percentage}
-                      onChange={e => setFormData({...formData, tax_percentage: e.target.value})}
-                    />
-                  </div>
-                  
-                  <div className="pt-4 border-t mt-4">
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-4">Emergency Contact</h4>
-                    <div className="grid gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="ec_name">Contact Name (Optional)</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Access Level</Label>
+                      <Select value={formData.access_level} onValueChange={v => setFormData({...formData, access_level: v})}>
+                        <SelectTrigger className="h-9 text-sm rounded-lg">
+                          <SelectValue placeholder="Select access level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="employee">Standard Employee</SelectItem>
+                          <SelectItem value="admin">Administrator (HR / Mgmt)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Account Status</Label>
+                      <Select value={formData.status} onValueChange={v => setFormData({...formData, status: v})}>
+                        <SelectTrigger className="h-9 text-sm rounded-lg">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Active">Active</SelectItem>
+                          <SelectItem value="Remote">Remote</SelectItem>
+                          <SelectItem value="On Leave">On Leave</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="password" className="text-xs font-medium">Temporary Password</Label>
+                      <div className="relative">
                         <Input 
-                          id="ec_name" 
-                          placeholder="Jane Doe" 
-                          value={formData.emergency_contact_name}
-                          onChange={e => setFormData({...formData, emergency_contact_name: e.target.value})}
+                          id="password" 
+                          type={showPassword ? "text" : "password"} 
+                          placeholder="••••••••" 
+                          value={formData.password}
+                          onChange={e => setFormData({...formData, password: e.target.value})}
+                          className="h-9 text-sm rounded-lg pr-9"
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Required to change upon first login.</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="payslip_email" className="text-xs font-medium">
+                        Payslip Email <span className="text-muted-foreground font-normal">(Optional)</span>
+                      </Label>
+                      <Input 
+                        id="payslip_email" 
+                        type="email" 
+                        placeholder="Defaults to work email" 
+                        value={formData.payslip_email}
+                        onChange={e => setFormData({...formData, payslip_email: e.target.value})}
+                        className="h-9 text-sm rounded-lg"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Monthly statements sent here.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Compensation & Payroll */}
+                <div className="space-y-3 pt-3 border-t">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <Wallet className="size-3.5 text-primary" />
+                    <span>Monthly Compensation (₹)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="salary" className="text-xs font-medium">Base Salary (₹/mo) <span className="text-red-500">*</span></Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">₹</span>
+                        <Input 
+                          id="salary" 
+                          type="number" 
+                          min="0"
+                          placeholder="85000" 
+                          value={formData.monthly_base_salary}
+                          onChange={e => setFormData({...formData, monthly_base_salary: e.target.value})}
+                          className="h-9 text-sm rounded-lg pl-7"
                         />
                       </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="ec_phone">Contact Phone (Optional)</Label>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="allowance" className="text-xs font-medium">Monthly Allowance (₹)</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">₹</span>
                         <Input 
-                          id="ec_phone" 
-                          placeholder="+1 234 567 8900" 
-                          value={formData.emergency_contact_phone}
-                          onChange={e => setFormData({...formData, emergency_contact_phone: e.target.value})}
+                          id="allowance" 
+                          type="number" 
+                          min="0"
+                          placeholder="5000" 
+                          value={formData.monthly_allowance}
+                          onChange={e => setFormData({...formData, monthly_allowance: e.target.value})}
+                          className="h-9 text-sm rounded-lg pl-7"
                         />
                       </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="benefits" className="text-xs font-medium">Benefits Deduction (₹)</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">₹</span>
+                        <Input 
+                          id="benefits" 
+                          type="number" 
+                          min="0"
+                          placeholder="2000" 
+                          value={formData.monthly_benefits_deduction}
+                          onChange={e => setFormData({...formData, monthly_benefits_deduction: e.target.value})}
+                          className="h-9 text-sm rounded-lg pl-7"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="tax" className="text-xs font-medium">Tax Deduction (%)</Label>
+                      <div className="relative">
+                        <Input 
+                          id="tax" 
+                          type="number" 
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          placeholder="10" 
+                          value={formData.tax_percentage}
+                          onChange={e => setFormData({...formData, tax_percentage: e.target.value})}
+                          className="h-9 text-sm rounded-lg pr-7"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Emergency Contact */}
+                <div className="space-y-3 pt-3 border-t">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <Phone className="size-3.5 text-primary" />
+                    <span>Emergency Contact (Optional)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ec_name" className="text-xs font-medium">Contact Name</Label>
+                      <Input 
+                        id="ec_name" 
+                        placeholder="e.g. Jane Doe" 
+                        value={formData.emergency_contact_name}
+                        onChange={e => setFormData({...formData, emergency_contact_name: e.target.value})}
+                        className="h-9 text-sm rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ec_phone" className="text-xs font-medium">Contact Phone</Label>
+                      <Input 
+                        id="ec_phone" 
+                        placeholder="e.g. +91 98765 43210" 
+                        value={formData.emergency_contact_phone}
+                        onChange={e => setFormData({...formData, emergency_contact_phone: e.target.value})}
+                        className="h-9 text-sm rounded-lg"
+                      />
                     </div>
                   </div>
                 </div>
               </div>
-              <DialogFooter className="mt-4">
-                <Button variant="outline" onClick={() => handleDialogOpenChange(false)}>Cancel</Button>
-                <Button onClick={handleCreateAccount} disabled={addEmployeeMutation.isPending}>
+
+              <DialogFooter className="px-6 py-3.5 border-t bg-muted/30 shrink-0 flex items-center justify-end gap-2.5">
+                <Button variant="outline" size="sm" className="rounded-lg h-9 px-4" onClick={() => handleDialogOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" className="rounded-lg h-9 px-5 font-semibold" onClick={handleCreateAccount} disabled={addEmployeeMutation.isPending}>
                   {addEmployeeMutation.isPending ? "Creating..." : "Create Account"}
                 </Button>
               </DialogFooter>

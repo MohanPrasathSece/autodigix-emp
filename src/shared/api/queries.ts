@@ -8,7 +8,7 @@ export const useEmployees = () => {
       const { data, error } = await supabase
         .from('employees')
         .select(
-          'id, name, email, payslip_email, role, department, status, attendance, initials, phone, location, manager_id, base_salary, leave_balance, monthly_allowance, monthly_benefits_deduction, emergency_contact_name, emergency_contact_phone, created_at, access_level, avatarColor:avatar_color, avatarUrl:avatar_url, absentDates:absent_dates(date, subject)'
+          'id, name, email, payslip_email, role, department, status, attendance, initials, phone, location, manager_id, base_salary, leave_balance, monthly_allowance, monthly_benefits_deduction, tax_percentage, emergency_contact_name, emergency_contact_phone, created_at, access_level, avatarColor:avatar_color, avatarUrl:avatar_url, absentDates:absent_dates(date, subject)'
         );
       if (error) throw new Error(error.message);
       return data;

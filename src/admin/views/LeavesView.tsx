@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, X, Filter, AlertTriangle, Calendar as CalendarIcon, AlignLeft } from "lucide-react";
+import { Check, X, AlertTriangle, Calendar as CalendarIcon, AlignLeft } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -79,9 +79,6 @@ export function ApprovalsPage() {
       <PageHeader
         title="Leave approvals"
         description="Review requests from your team."
-        actions={
-          <Button variant="outline" className="rounded-xl" onClick={() => toast.info("Filter modal coming soon")}><Filter className="mr-1.5 size-4" />Filter</Button>
-        }
       />
 
       <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>

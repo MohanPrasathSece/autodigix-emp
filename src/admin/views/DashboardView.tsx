@@ -32,7 +32,8 @@ export function AdminDashboardView() {
 
   const pendingLeaves = leaveRequests.filter((r: any) => r.status === "Pending").slice(0, 3);
   
-  const totalEmployees = employees.length;
+  // Active headcount — terminated employees are excluded from all live metrics.
+  const totalEmployees = employees.filter((e: any) => e.status !== 'Terminated').length;
 
   // Check if an employee is currently clocked in today
   const todayStrDashboard = getLocalToday();
@@ -47,8 +48,9 @@ export function AdminDashboardView() {
   
   const activeEmployees = employees.filter((e: any) => isWorking(e.id)).length;
 
-  // Present employees: any employee who clocked in at least once today
+  // Present employees: any active employee who clocked in at least once today
   const presentEmployees = employees.filter((e: any) => 
+    e.status !== 'Terminated' &&
     (attendanceHistory as any[]).some(h => h.employee_id === e.id && h.date === todayStrDashboard)
   ).length;
 
@@ -56,7 +58,14 @@ export function AdminDashboardView() {
     ? Math.round((presentEmployees / expectedToWork) * 100) 
     : 0;
 
-  const latestPeriod = payslips.length > 0 ? payslips[payslips.length - 1].period : "No Data";
+  // Latest payroll period = chronologically newest ("Nov 2026"), not last array element.
+  const periodTime = (period: string) => {
+    const d = new Date(`1 ${period}`);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  };
+  const latestPeriod = payslips.length > 0
+    ? [...(payslips as any[])].sort((a, b) => periodTime(a.period) - periodTime(b.period)).slice(-1)[0].period
+    : "No Data";
   const monthlyPayroll = payslips
     .filter((p: any) => p.period === latestPeriod)
     .reduce((sum: number, p: any) => sum + p.net, 0);
@@ -170,7 +179,7 @@ export function AdminDashboardView() {
             <Button variant="outline" className="rounded-xl" onClick={() => navigate('/admin/reports')}>
               <FileSpreadsheet className="mr-2 size-4" /> Export Report
             </Button>
-            <Button className="rounded-xl" onClick={() => navigate('/admin/employees/add')}>
+            <Button className="rounded-xl" onClick={() => navigate('/admin/employees?add=1')}>
               <UserPlus className="mr-2 size-4" /> Add Employee
             </Button>
           </div>
@@ -279,7 +288,7 @@ export function AdminDashboardView() {
       <div className="grid gap-6 lg:grid-cols-4">
         {/* Onboard Employee */}
         <button
-          onClick={() => navigate('/admin/employees/add')}
+          onClick={() => navigate('/admin/employees?add=1')}
           className="group flex flex-col items-start gap-3 rounded-2xl border bg-card p-5 text-left transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg"
         >
           <div className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useHolidays } from "@/shared/api/queries";
 import { useAddHoliday } from "@/shared/api/mutations";
 import { formatLeaveDate } from "@/shared/lib/dateUtils";
+import { toast } from "sonner";
 
 export function AdminHolidaysView() {
   const { data: holidays = [], isLoading } = useHolidays();
@@ -16,9 +17,32 @@ export function AdminHolidaysView() {
   const [date, setDate] = useState("");
 
   const handleAdd = () => {
-    if (!name.trim() || !date) return;
+    const trimmedName = name.trim();
+
+    if (!trimmedName || !date) {
+      toast.error("Please provide both a holiday name and date.");
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      toast.error("Please enter a valid date.");
+      return;
+    }
+
+    const duplicate = (holidays as any[]).some((h: any) => {
+      const existingDate = String(h?.date ?? "").slice(0, 10);
+      const sameDate = existingDate === date;
+      const sameNameAndDate =
+        String(h?.name ?? "").trim().toLowerCase() === trimmedName.toLowerCase() && sameDate;
+      return sameDate || sameNameAndDate;
+    });
+
+    if (duplicate) {
+      toast.error("This holiday already exists.");
+      return;
+    }
+
     addHoliday.mutate(
-      { name: name.trim(), date },
+      { name: trimmedName, date },
       { onSuccess: () => { setName(""); setDate(""); } }
     );
   };

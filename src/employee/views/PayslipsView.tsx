@@ -5,50 +5,80 @@ import { Badge } from "@/components/ui/badge";
 import { Download, FileText, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
-import { usePayslips } from "@/shared/api/queries";
+import { usePayslips, useEmployees } from "@/shared/api/queries";
 import { useAuthStore } from "@/shared/store/auth";
+import { generatePayslipPDFBase64 } from "@/shared/lib/pdfGenerator";
 import { useMemo } from "react";
+
+/** Parse a "MMM YYYY" period (e.g. "Nov 2026") into a comparable timestamp. */
+const parsePeriodDate = (period: string): number => {
+  const d = new Date(`1 ${period}`);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+};
 
 export function EmployeePayslipsView() {
   const { user } = useAuthStore();
   const { data: allPayslips = [], isLoading } = usePayslips();
+  const { data: employees = [] } = useEmployees();
 
+  const myEmployee = useMemo(
+    () => employees.find((e: any) => e.id === user?.id),
+    [employees, user]
+  );
+
+  // All of the logged-in employee's payslips, newest month first.
   const payslips = useMemo(() => {
     if (!user) return [];
-    return allPayslips.filter((slip: any) => slip.employee_id === user.id);
+    return allPayslips
+      .filter((slip: any) => slip.employee_id === user.id)
+      .sort((a: any, b: any) => parsePeriodDate(b.period) - parsePeriodDate(a.period));
   }, [allPayslips, user]);
 
-  const ytdGross = payslips.reduce((sum: number, slip: any) => sum + slip.gross, 0);
-  const ytdNet = payslips.reduce((sum: number, slip: any) => sum + slip.net, 0);
+  const ytdGross = payslips.reduce((sum: number, slip: any) => sum + (Number(slip.gross) || 0), 0);
+  const ytdNet = payslips.reduce((sum: number, slip: any) => sum + (Number(slip.net) || 0), 0);
   const ytdDeductions = ytdGross - ytdNet;
 
-  const handleDownload = (slip: any) => {
-    toast.info("Preparing PDF", { description: `Generating payslip for ${slip.period}...` });
-    
-    const html = `<!DOCTYPE html><html><head><title>Payslip - ${slip.period}</title>
-      <style>body{font-family:sans-serif;padding:32px;color:#111}h1{color:#4f46e5}h2{color:#374151;margin-top:24px}
-      table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left}
-      th{background:#f9fafb;font-weight:600}
-      .footer{margin-top:32px;font-size:12px;color:#9ca3af}</style></head>
-      <body><h1>&#x1F4CA; Harmony HR — Official Payslip</h1><p>Period: ${slip.period}</p>
-      <h2>Employee Details</h2>
-      <p><strong>Name:</strong> ${user?.name}</p><p><strong>Email:</strong> ${user?.email}</p>
-      <h2>Salary Breakdown</h2>
-      <table><thead><tr><th>Description</th><th>Amount</th></tr></thead>
-      <tbody>
-        <tr><td>Gross Salary</td><td>Rs. ${slip.gross.toLocaleString('en-IN')}</td></tr>
-        <tr><td>Total Deductions</td><td style="color:red">Rs. ${(slip.gross - slip.net).toLocaleString('en-IN')}</td></tr>
-        <tr><td><strong>Net Pay</strong></td><td><strong>Rs. ${slip.net.toLocaleString('en-IN')}</strong></td></tr>
-      </tbody></table>
-      <div class="footer">Harmony HR — Confidential</div>
-      </body></html>`;
+  // Indian financial year (Apr–Mar) derived from today's date.
+  const now = new Date();
+  const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const fyLabel = `${String(fyStartYear).slice(2)}-${String(fyStartYear + 1).slice(2)}`;
 
-    const win = window.open('', '_blank', 'width=800,height=600');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      win.focus();
-      setTimeout(() => win.print(), 500);
+  // Employee identity for the PDF — from the session, enriched by the employees row.
+  const empInfo = {
+    name: user?.name || myEmployee?.name || "Employee",
+    id: user?.id || myEmployee?.id || "EMP",
+    email: user?.email || myEmployee?.email || "",
+    department: myEmployee?.department || "General",
+    role: myEmployee?.role || "Staff",
+  };
+
+  const handleDownload = (slip: any) => {
+    try {
+      const pdfBase64 = generatePayslipPDFBase64({
+        employeeName: empInfo.name,
+        employeeId: empInfo.id,
+        email: empInfo.email,
+        department: empInfo.department,
+        role: empInfo.role,
+        period: slip.period,
+        base_amount: slip.base_amount ?? 0,
+        allowances_amount: slip.allowances_amount ?? 0,
+        unpaid_leave_amount: slip.unpaid_leave_amount ?? 0,
+        gross: slip.gross,
+        tax_amount: slip.tax_amount ?? 0,
+        benefits_amount: slip.benefits_amount ?? 0,
+        net: slip.net,
+      });
+
+      const link = document.createElement("a");
+      link.href = `data:application/pdf;base64,${pdfBase64}`;
+      link.download = `Payslip_${slip.period.replace(/\s+/g, '_')}_${empInfo.name.replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Payslip for ${slip.period} downloaded!`);
+    } catch (err: any) {
+      toast.error(`Failed to download payslip: ${err.message}`);
     }
   };
 
@@ -68,7 +98,7 @@ export function EmployeePayslipsView() {
                 <Wallet className="size-5" />
               </div>
               <div>
-                <h3 className="font-semibold">Financial Year 26-27</h3>
+                <h3 className="font-semibold">Financial Year {fyLabel}</h3>
                 <p className="text-xs text-muted-foreground">Year to Date (YTD) Earnings</p>
               </div>
             </div>
@@ -92,63 +122,77 @@ export function EmployeePayslipsView() {
 
         {/* Historical Payslips List */}
         <div className="col-span-2 space-y-4">
-          <h2 className="text-lg font-semibold tracking-tight">Recent Payslips</h2>
-          
+          <h2 className="text-lg font-semibold tracking-tight">Payslip History</h2>
+
           {isLoading ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Loading payslips...</div>
           ) : payslips.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">No payslips found.</div>
-          ) : payslips.map((slip: any) => (
-            <div key={slip.id} className="rounded-2xl border bg-card p-5 shadow-soft transition-colors hover:border-primary/30">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground">
-                    <FileText className="size-5" />
+          ) : payslips.map((slip: any) => {
+            const base = slip.base_amount ?? 0;
+            const allowances = slip.allowances_amount ?? 0;
+            const gross = base + allowances;
+            const tax = slip.tax_amount ?? 0;
+            const benefits = slip.benefits_amount ?? 0;
+            const unpaid = slip.unpaid_leave_amount ?? 0;
+            const totalDeductions = tax + benefits + unpaid;
+            return (
+              <div key={slip.id} className="rounded-2xl border bg-card p-5 shadow-soft transition-colors hover:border-primary/30">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground">
+                      <FileText className="size-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-base">{slip.period}</h3>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-muted-foreground">Monthly Salary</span>
+                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] h-4 px-1.5 rounded-sm">
+                          {slip.status}
+                        </Badge>
+                      </div>
+                    </div>
                   </div>
+
+                  <div className="flex items-center gap-4 sm:text-right">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">Net Pay</p>
+                      <p className="font-bold text-lg">₹ {(Number(slip.net) || 0).toLocaleString('en-IN')}</p>
+                    </div>
+                    <Button variant="outline" size="icon" className="rounded-xl hidden sm:flex shrink-0" onClick={() => handleDownload(slip)} title="Download PDF Payslip">
+                      <Download className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-8 text-sm">
                   <div>
-                    <h3 className="font-semibold text-base">{slip.period}</h3>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-muted-foreground">Monthly Salary</span>
-                      <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] h-4 px-1.5 rounded-sm">
-                        {slip.status}
-                      </Badge>
+                    <h4 className="font-semibold text-emerald-600 mb-3 border-b pb-2">Earnings</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between"><span className="text-muted-foreground">Base Salary</span><span>₹ {base.toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Allowances</span><span>₹ {allowances.toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between font-semibold pt-2 border-t"><span className="text-foreground">Total Gross</span><span>₹ {gross.toLocaleString('en-IN')}</span></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-semibold text-red-500 mb-3 border-b pb-2">Deductions</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between"><span className="text-muted-foreground">Income Tax (TDS)</span><span>₹ {tax.toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Benefits</span><span>₹ {benefits.toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Unpaid Leave / LOP{(slip.lop_days || 0) > 0 ? ` (${slip.lop_days}d)` : ""}</span><span>₹ {unpaid.toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between font-semibold pt-2 border-t"><span className="text-foreground">Total Deductions</span><span>₹ {totalDeductions.toLocaleString('en-IN')}</span></div>
                     </div>
                   </div>
                 </div>
-                
-                <div className="flex items-center gap-4 sm:text-right">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Net Pay</p>
-                    <p className="font-bold text-lg">₹ {slip.net.toLocaleString('en-IN')}</p>
-                  </div>
-                  <Button variant="outline" size="icon" className="rounded-xl hidden sm:flex shrink-0" onClick={() => handleDownload(slip)}>
-                    <Download className="size-4" />
-                  </Button>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-8 text-sm">
-                <div>
-                  <h4 className="font-semibold text-emerald-600 mb-3 border-b pb-2">Salary Details</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Gross Salary</span><span>₹ {slip.gross.toLocaleString('en-IN')}</span></div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold text-red-500 mb-3 border-b pb-2">Deductions</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Total Deductions</span><span>₹ {(slip.gross - slip.net).toLocaleString('en-IN')}</span></div>
-                  </div>
-                </div>
+                {/* Mobile Download Button */}
+                <Button variant="outline" className="w-full mt-6 rounded-xl sm:hidden" onClick={() => handleDownload(slip)}>
+                  <Download className="mr-2 size-4" /> Download PDF
+                </Button>
               </div>
-
-              {/* Mobile Download Button */}
-              <Button variant="outline" className="w-full mt-6 rounded-xl sm:hidden" onClick={() => handleDownload(slip)}>
-                <Download className="mr-2 size-4" /> Download PDF
-              </Button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

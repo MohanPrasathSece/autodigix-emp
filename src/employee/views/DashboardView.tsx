@@ -15,6 +15,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useHolidays, useNotifications, useLeaveRequests, useEmployees } from "@/shared/api/queries";
+import { formatLeaveDate } from "@/shared/lib/dateUtils";
 import { useAuthStore } from "@/shared/store/auth";
 import { useNavigate } from "react-router-dom";
 
@@ -116,7 +117,7 @@ export function EmployeeDashboard() {
                 <li key={h.name} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                   <div>
                     <div className="text-sm font-medium">{h.name}</div>
-                    <div className="text-xs text-muted-foreground">{h.date}</div>
+                    <div className="text-xs text-muted-foreground">{formatLeaveDate(h.date)}</div>
                   </div>
                   <div className="rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
                     Public
@@ -130,9 +131,6 @@ export function EmployeeDashboard() {
         <div className="rounded-2xl border bg-card p-6 shadow-soft">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-semibold">Notifications</h2>
-            <Button size="sm" variant="ghost" className="rounded-lg text-xs" onClick={() => navigate('/employee/profile')}>
-              View all
-            </Button>
           </div>
           <ul className="space-y-3">
             {notifications.length === 0 ? (

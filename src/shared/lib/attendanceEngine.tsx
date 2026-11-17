@@ -58,8 +58,8 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
         const sevenPM = new Date(clockInDate);
         sevenPM.setHours(19, 0, 0, 0);
         const finalEndTime = sevenPM.getTime() < clockInDate.getTime() ? clockInDate.getTime() + 60000 : sevenPM.getTime();
-        const sessionSeconds = Math.floor((finalEndTime - clockInDate.getTime()) / 1000);
-        const totalHours = (Number(record.hours) || 0) + sessionSeconds / 3600;
+        const sessionSeconds = Math.max(0, Math.floor((finalEndTime - clockInDate.getTime()) / 1000));
+        const totalHours = Number((Math.max(0, Number(record.hours) || 0) + sessionSeconds / 3600).toFixed(2));
         await supabase.from('attendance_history').update({
           status: 'Clocked Out',
           hours: totalHours,
@@ -78,15 +78,15 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
 
       if (todayRecord && todayRecord.status === 'Clocked In') {
         const sessionStart = new Date(todayRecord.clock_in_time || todayRecord.created_at).getTime();
-        const base = Math.floor((Number(todayRecord.hours) || 0) * 3600);
+        const base = Math.max(0, Math.floor((Number(todayRecord.hours) || 0) * 3600));
         const sevenPM = new Date(sessionStart);
         sevenPM.setHours(19, 0, 0, 0);
 
         if (nowMs >= sevenPM.getTime()) {
           // Active session ran past 7 PM — close it out.
           const finalEndTime = sevenPM.getTime() < sessionStart ? sessionStart + 60000 : sevenPM.getTime();
-          const sessionSeconds = Math.floor((finalEndTime - sessionStart) / 1000);
-          const totalHours = (Number(todayRecord.hours) || 0) + sessionSeconds / 3600;
+          const sessionSeconds = Math.max(0, Math.floor((finalEndTime - sessionStart) / 1000));
+          const totalHours = Number((Math.max(0, Number(todayRecord.hours) || 0) + sessionSeconds / 3600).toFixed(2));
           await supabase.from('attendance_history').update({
             status: 'Clocked Out',
             hours: totalHours,
@@ -99,13 +99,13 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
           setBaseSeconds(base);
           setClockInTime(sessionStart);
           setIsWorking(true);
-          setSeconds(base + Math.floor((nowMs - sessionStart) / 1000));
+          setSeconds(base + Math.max(0, Math.floor((nowMs - sessionStart) / 1000)));
         }
       } else if (todayRecord && todayRecord.status === 'Clocked Out') {
         setBaseSeconds(0);
         setClockInTime(null);
         setIsWorking(false);
-        setSeconds(Math.floor((Number(todayRecord.hours) || 0) * 3600));
+        setSeconds(Math.max(0, Math.floor((Number(todayRecord.hours) || 0) * 3600)));
       } else {
         setBaseSeconds(0);
         setClockInTime(null);
@@ -122,7 +122,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     if (!user?.id) return;
 
     const now = Date.now();
-    const carried = seconds; // time already worked today
+    const carried = Math.max(0, seconds); // total time already worked today
     setBaseSeconds(carried);
     setClockInTime(now);
     setIsWorking(true);
@@ -151,9 +151,9 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
 
     if (finalEndTime < clockInTime) finalEndTime = clockInTime + 60000;
 
-    const sessionSeconds = Math.floor((finalEndTime - clockInTime) / 1000);
+    const sessionSeconds = Math.max(0, Math.floor((finalEndTime - clockInTime) / 1000));
     const totalSeconds = baseSeconds + sessionSeconds;
-    const hoursWorked = sessionSeconds / 3600;
+    const hoursWorked = Number((sessionSeconds / 3600).toFixed(2));
 
     setIsWorking(false);
     setSeconds(totalSeconds);
@@ -187,7 +187,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
            stopWork(true).finally(() => { stoppingRef.current = false; });
          }
       } else {
-         setSeconds(baseSeconds + Math.floor((now.getTime() - clockInTime) / 1000));
+         setSeconds(baseSeconds + Math.max(0, Math.floor((now.getTime() - clockInTime) / 1000)));
       }
     }, 1000);
 

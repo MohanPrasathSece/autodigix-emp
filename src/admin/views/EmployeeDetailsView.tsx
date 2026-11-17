@@ -44,6 +44,7 @@ export function EmployeeDetailsView() {
     monthly_base_salary: "50000",
     monthly_allowance: "0",
     monthly_benefits_deduction: "0",
+    tax_percentage: "0",
   });
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export function EmployeeDetailsView() {
         monthly_base_salary: monthlyBase.toString(),
         monthly_allowance: (emp.monthly_allowance || 0).toString(),
         monthly_benefits_deduction: (emp.monthly_benefits_deduction || 0).toString(),
+        tax_percentage: (emp.tax_percentage ?? 0).toString(),
       });
     }
   }, [emp]);
@@ -92,6 +94,7 @@ export function EmployeeDetailsView() {
         base_salary: annualBaseSalary,
         monthly_allowance: Number(editForm.monthly_allowance || 0),
         monthly_benefits_deduction: Number(editForm.monthly_benefits_deduction || 0),
+        tax_percentage: Number(editForm.tax_percentage || 0),
       },
       {
         onSuccess: () => {
@@ -121,6 +124,7 @@ export function EmployeeDetailsView() {
         monthly_base_salary: monthlyBase.toString(),
         monthly_allowance: (emp.monthly_allowance || 0).toString(),
         monthly_benefits_deduction: (emp.monthly_benefits_deduction || 0).toString(),
+        tax_percentage: (emp.tax_percentage ?? 0).toString(),
       });
     }
     setIsEditing(false);
@@ -136,7 +140,7 @@ export function EmployeeDetailsView() {
         department: emp.department,
         role: emp.role,
         period: slip.period,
-        base_amount: slip.base_amount || slip.gross,
+        base_amount: slip.base_amount ?? 0,
         allowances_amount: slip.allowances_amount || 0,
         unpaid_leave_amount: slip.unpaid_leave_amount || 0,
         gross: slip.gross,
@@ -455,7 +459,7 @@ export function EmployeeDetailsView() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-muted-foreground">Monthly Base Salary</Label>
                     {isEditing ? (
@@ -512,13 +516,40 @@ export function EmployeeDetailsView() {
                       </p>
                     )}
                   </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground">Income Tax (TDS) %</Label>
+                    {isEditing ? (
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          value={editForm.tax_percentage}
+                          onChange={(e) => setEditForm({ ...editForm, tax_percentage: e.target.value })}
+                          className="h-8 text-sm pr-6 font-semibold"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                      </div>
+                    ) : (
+                      <p className="text-lg font-bold text-foreground">
+                        {Number(emp.tax_percentage ?? 0)}%
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-4">
                 {empPayslips.length === 0 ? (
                   <div className="text-center text-muted-foreground p-8 border rounded-2xl">No payslips found for this employee.</div>
-                ) : empPayslips.map((slip: any) => (
+                ) : empPayslips.map((slip: any) => {
+                  const base = slip.base_amount ?? 0;
+                  const allowances = slip.allowances_amount ?? 0;
+                  const gross = base + allowances;
+                  const tax = slip.tax_amount ?? 0;
+                  const benefits = slip.benefits_amount ?? 0;
+                  const unpaid = slip.unpaid_leave_amount ?? 0;
+                  const totalDeductions = tax + benefits + unpaid;
+                  return (
                   <div key={slip.id} className="rounded-2xl border bg-card p-5 shadow-soft transition-colors hover:border-primary/30">
                     <div className="flex items-center justify-between mb-4 border-b pb-4">
                       <div className="flex items-center gap-3">
@@ -546,20 +577,19 @@ export function EmployeeDetailsView() {
                       <div>
                         <h4 className="font-semibold text-emerald-600 mb-2">Earnings</h4>
                         <div className="space-y-1">
-                          <div className="flex justify-between"><span className="text-muted-foreground">Base Salary</span><span>₹ {(slip.base_amount || slip.gross).toLocaleString('en-IN')}</span></div>
-                          {(slip.allowances_amount || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Allowances</span><span>₹ {slip.allowances_amount.toLocaleString('en-IN')}</span></div>}
-                          <div className="flex justify-between font-semibold mt-2 pt-2 border-t"><span className="text-foreground">Total Gross</span><span>₹ {slip.gross.toLocaleString('en-IN')}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Base Salary</span><span>₹ {base.toLocaleString('en-IN')}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Allowances</span><span>₹ {allowances.toLocaleString('en-IN')}</span></div>
+                          <div className="flex justify-between font-semibold mt-2 pt-2 border-t"><span className="text-foreground">Total Gross</span><span>₹ {gross.toLocaleString('en-IN')}</span></div>
                         </div>
                       </div>
-                      
+
                       <div>
                         <h4 className="font-semibold text-red-500 mb-2">Deductions</h4>
                         <div className="space-y-1">
-                          {(slip.tax_amount || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Taxes</span><span>₹ {slip.tax_amount.toLocaleString('en-IN')}</span></div>}
-                          {(slip.benefits_amount || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Benefits</span><span>₹ {slip.benefits_amount.toLocaleString('en-IN')}</span></div>}
-                          {(slip.lop_days || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Loss of Pay (LOP)</span><span>{slip.lop_days} day(s)</span></div>}
-                          {(slip.unpaid_leave_amount || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Unpaid Leave</span><span>₹ {slip.unpaid_leave_amount.toLocaleString('en-IN')}</span></div>}
-                          <div className="flex justify-between font-semibold mt-2 pt-2 border-t"><span className="text-foreground">Total Deductions</span><span>₹ {(slip.gross - slip.net).toLocaleString('en-IN')}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Income Tax (TDS)</span><span>₹ {tax.toLocaleString('en-IN')}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Benefits</span><span>₹ {benefits.toLocaleString('en-IN')}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Unpaid Leave / LOP{(slip.lop_days || 0) > 0 ? ` (${slip.lop_days}d)` : ""}</span><span>₹ {unpaid.toLocaleString('en-IN')}</span></div>
+                          <div className="flex justify-between font-semibold mt-2 pt-2 border-t"><span className="text-foreground">Total Deductions</span><span>₹ {totalDeductions.toLocaleString('en-IN')}</span></div>
                         </div>
                       </div>
                     </div>
@@ -570,7 +600,8 @@ export function EmployeeDetailsView() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </TabsContent>
 

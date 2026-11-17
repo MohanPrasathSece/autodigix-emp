@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { useNotifications, useHolidays, useLeaveRequests, useEmployees } from "@/shared/api/queries";
 import { useAuthStore } from "@/shared/store/auth";
-import { parseLeaveDate } from "@/shared/lib/dateUtils";
+import { parseLeaveDate, toLocalISO } from "@/shared/lib/dateUtils";
 
 type DayKind = "govt-holiday" | "weekend" | "none";
 
@@ -77,8 +77,6 @@ const legend: { kind: DayKind; label: string }[] = [
   { kind: "govt-holiday", label: "Govt Holiday" },
 ];
 
-// Removed mockLogs to use database notifications
-
 export function CalendarPage() {
   const [baseDate, setBaseDate] = useState(new Date()); // Starts current month
   const [selectedDay, setSelectedDay] = useState<{ date: Date; kind: DayKind; note: string; leaves?: any[] } | null>(null);
@@ -89,10 +87,15 @@ export function CalendarPage() {
   const { data: leaveRequests = [] } = useLeaveRequests();
   const { data: employees = [] } = useEmployees();
 
-  const govtHolidaysMap = holidays.reduce((acc: any, h: any) => {
-    acc[h.date] = h.name;
+  // Normalise holiday dates to a local "YYYY-MM-DD" key to avoid any UTC off-by-one.
+  const govtHolidaysMap = (holidays as any[]).reduce((acc: Record<string, string>, h: any) => {
+    const parsed = parseLeaveDate(h?.date);
+    const key = parsed ? toLocalISO(parsed) : String(h?.date ?? "").slice(0, 10);
+    if (key) acc[key] = h.name;
     return acc;
   }, {});
+
+  const todayKey = toLocalISO(new Date());
 
   // Filter logs to last 7 days only (to simulate auto deletion)
   const recentLogs = notifications.filter((log: any) => {
@@ -123,7 +126,7 @@ export function CalendarPage() {
               <ChevronLeft className="size-4" />
             </Button>
             <Button variant="outline" className="rounded-xl" onClick={goToday}>
-              {new Date().toLocaleString("en-US", { month: "long" })}
+              Today
             </Button>
             <Button size="icon" variant="outline" className="rounded-xl" onClick={nextMonth}>
               <ChevronRight className="size-4" />
@@ -142,7 +145,7 @@ export function CalendarPage() {
                   <ChevronLeft className="size-4" />
                 </Button>
                 <Button variant="outline" className="h-8 text-xs rounded-lg" onClick={goToday}>
-                  {new Date().toLocaleString("en-US", { month: "long" })}
+                  Today
                 </Button>
                 <Button size="icon" variant="outline" className="size-8 rounded-lg" onClick={nextMonth}>
                   <ChevronRight className="size-4" />
@@ -163,6 +166,7 @@ export function CalendarPage() {
                   className={cn(
                     "h-12 sm:h-16 rounded-lg border transition-all text-sm font-medium flex flex-col items-center justify-start pt-1.5 relative hover:bg-muted/50",
                     c.date ? kindStyles[c.kind] : "opacity-0 pointer-events-none border-transparent",
+                    c.date && toLocalISO(c.date) === todayKey && "ring-2 ring-primary ring-offset-1 ring-offset-card",
                   )}
                 >
                   <span className="z-10 text-xs">{c.date && c.date.getDate()}</span>

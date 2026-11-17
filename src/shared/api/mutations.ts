@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { serverLog } from '../lib/logger';
-import { getLocalToday, getMonthKey, parseLeaveDate, toLocalISO } from '../lib/dateUtils';
+import { getLocalToday, getMonthKey, parseLeaveDate, toLocalISO, getWorkingDaysInMonth } from '../lib/dateUtils';
 import { syncAttendanceToSheet, formatClockTime } from '../lib/googleSheets';
 import { computeLeaveLopDays, sumLopDaysForMonth, type LeaveLike } from '../lib/lopUtils';
 import confetti from 'canvas-confetti';
@@ -216,6 +216,7 @@ export const useAddEmployee = () => {
       base_salary?: number;
       monthly_allowance?: number;
       monthly_benefits_deduction?: number;
+      tax_percentage?: number;
       emergency_contact_name?: string;
       emergency_contact_phone?: string;
       access_level?: string;
@@ -553,10 +554,10 @@ export const useRunPayroll = () => {
         throw new Error(`Payroll for ${period} has already been processed.`);
       }
 
-      // 1. Fetch active employees (including base_salary, monthly_allowance, monthly_benefits_deduction)
+      // 1. Fetch active employees (including salary components and TDS rate)
       const { data: employees, error: fetchError } = await supabase
         .from('employees')
-        .select('id, name, email, payslip_email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction')
+        .select('id, name, email, payslip_email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction, tax_percentage')
         .neq('status', 'Terminated');
 
       if (fetchError) throw new Error(fetchError.message);
@@ -582,9 +583,12 @@ export const useRunPayroll = () => {
         ? getMonthKey(getLocalToday())
         : `${periodDate.getFullYear()}-${String(periodDate.getMonth() + 1).padStart(2, '0')}`;
 
+      // Real weekdays in the paid month — divisor for the per-day rate.
+      const workingDays = getWorkingDaysInMonth(periodMonthKey);
+
       // 3. Map to payslips
       const payslips = employees.map(emp => {
-        const salary = emp.base_salary ?? 60000;
+        const salary = emp.base_salary ?? 0;
         const base_amount = Math.round(salary / 12);
         const allowances_amount = emp.monthly_allowance || 0;
 
@@ -600,15 +604,21 @@ export const useRunPayroll = () => {
 
         let unpaid_leave_amount = 0;
         if (deductionDays > 0) {
-           const dailyRate = base_amount / 22;
+           const dailyRate = base_amount / workingDays;
            unpaid_leave_amount = Math.round(deductionDays * dailyRate);
         }
 
-        const gross = base_amount + allowances_amount - unpaid_leave_amount;
+        // Contractual gross for the month (the EARNINGS column on the payslip).
+        const gross = base_amount + allowances_amount;
+
+        // Income tax (TDS) applies to the salary actually earned this month.
+        const taxableAmount = Math.max(0, gross - unpaid_leave_amount);
+        const taxRate = Number(emp.tax_percentage) || 0;
+        const tax_amount = Math.round(taxableAmount * (taxRate / 100));
+
         const benefits_amount = emp.monthly_benefits_deduction || 0;
-        const tax_amount = Math.round(gross * 0.25); // 25% tax bracket assumption
-        const net = gross - tax_amount - benefits_amount;
-        
+        const net = gross - unpaid_leave_amount - benefits_amount - tax_amount;
+
         return {
           employee_id: emp.id,
           period: period,
@@ -774,6 +784,7 @@ export const useUpdateEmployee = () => {
       base_salary: number;
       monthly_allowance: number;
       monthly_benefits_deduction: number;
+      tax_percentage: number;
       emergency_contact_name: string;
       emergency_contact_phone: string;
       access_level: string;

@@ -15,7 +15,7 @@ import {
 
 import { useHolidays, useLeaveRequests } from "@/shared/api/queries";
 import { useAuthStore } from "@/shared/store/auth";
-import { parseLeaveDate } from "@/shared/lib/dateUtils";
+import { parseLeaveDate, toLocalISO } from "@/shared/lib/dateUtils";
 
 type DayKind = "present" | "leave-approved" | "leave-pending" | "govt-holiday" | "weekend" | "absent" | "none";
 
@@ -85,7 +85,6 @@ const legend: { kind: DayKind; label: string }[] = [
   { kind: "govt-holiday", label: "Govt Holiday" },
   { kind: "leave-approved", label: "Approved leave" },
   { kind: "leave-pending", label: "Pending leave" },
-  { kind: "absent", label: "Absent" },
 ];
 
 export function CalendarPage() {
@@ -96,10 +95,15 @@ export function CalendarPage() {
   const { data: leaveRequests = [] } = useLeaveRequests();
   const { user } = useAuthStore();
 
-  const govtHolidaysMap = holidays.reduce((acc: any, h: any) => {
-    acc[h.date] = h.name;
+  // Normalise holiday dates to a local "YYYY-MM-DD" key to avoid any UTC off-by-one.
+  const govtHolidaysMap = (holidays as any[]).reduce((acc: Record<string, string>, h: any) => {
+    const parsed = parseLeaveDate(h?.date);
+    const key = parsed ? toLocalISO(parsed) : String(h?.date ?? "").slice(0, 10);
+    if (key) acc[key] = h.name;
     return acc;
   }, {});
+
+  const todayKey = toLocalISO(new Date());
 
   const myLeaves = leaveRequests.filter((l: any) => l.employee_id === user?.id);
 
@@ -157,6 +161,7 @@ export function CalendarPage() {
                   className={cn(
                     "aspect-square rounded-lg border transition-all text-xs font-medium flex items-center justify-center relative",
                     c.date ? kindStyles[c.kind] : "opacity-0 pointer-events-none border-transparent",
+                    c.date && toLocalISO(c.date) === todayKey && "ring-2 ring-primary ring-offset-1 ring-offset-card",
                   )}
                 >
                   {c.kind === "leave-approved" && (

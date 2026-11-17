@@ -74,11 +74,13 @@ export function AppTopbar() {
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <div className="p-2">
-              <Button variant="outline" className="w-full text-xs h-8 rounded-lg" asChild>
-                <a href={user?.role === 'admin' ? '/admin/notifications' : '/employee/profile'}>View all notifications</a>
-              </Button>
-            </div>
+            {user?.role === 'admin' && (
+              <div className="p-2">
+                <Button variant="outline" className="w-full text-xs h-8 rounded-lg" asChild>
+                  <a href="/admin/notifications">View all notifications</a>
+                </Button>
+              </div>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
         <DropdownMenu>

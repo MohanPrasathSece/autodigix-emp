@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { getLocalToday } from "@/shared/lib/dateUtils";
+import { getLocalToday, parseLeaveDate } from "@/shared/lib/dateUtils";
 import { useLeaveRequests, usePayrollTrend, useAttendanceHistory, useEmployees, usePayslips } from "@/shared/api/queries";
 import { downloadExcelReport } from "@/shared/lib/excelReport";
 import { FileSpreadsheet, Download, FileDown } from "lucide-react";
@@ -59,37 +59,50 @@ export function ReportsView() {
   const payrollData = payrollTrend.map((p: any) => ({ month: p.month, cost: p.payroll }));
 
   // 3. Compute Work Hours & Attendance Data
-  const expectedToWork = employees.filter((e: any) => e.status !== "On Leave" && e.status !== "Remote").length || 1;
+  // Stable denominator: every non-terminated employee counts as headcount,
+  // regardless of their current Remote/On Leave status, so the rate does not
+  // inflate when people are simply working from home or on leave.
+  const activeEmployees = employees.filter((e: any) => e.status !== "Terminated");
+  const totalHeadcount = activeEmployees.length || 1;
+  const activeIds = new Set(activeEmployees.map((e: any) => e.id));
+  const todayKey = getLocalToday();
 
-  const attendanceByDate = attendanceHistory.reduce((acc: any, curr: any) => {
-    const d = curr.date; // e.g. '2023-10-25'
+  const attendanceByDate = attendanceHistory.reduce((acc: Record<string, Set<string>>, curr: any) => {
+    const d = String(curr.date ?? "").slice(0, 10); // 'YYYY-MM-DD'
+    if (!d || d > todayKey) return acc; // ignore future/malformed dates
+    if (!activeIds.has(curr.employee_id)) return acc;
     if (!acc[d]) acc[d] = new Set();
     acc[d].add(curr.employee_id);
     return acc;
   }, {});
 
-  const attendanceRateData = Object.keys(attendanceByDate).sort().map(date => {
+  const attendanceRateData = Object.keys(attendanceByDate).sort().map((date) => {
     const presentCount = attendanceByDate[date].size;
-    const rate = Math.round((presentCount / expectedToWork) * 100);
-    const month = new Date(date).toLocaleString('en-US', { month: 'short', day: 'numeric' });
-    return { month, rate: Math.min(rate, 100) };
+    const rate = Math.max(0, Math.min(100, Math.round((presentCount / totalHeadcount) * 100)));
+    const parsed = parseLeaveDate(date);
+    const month = parsed
+      ? parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : date;
+    return { month, rate };
   });
 
-  if (attendanceRateData.length === 0) {
-    attendanceRateData.push({ month: 'No Data', rate: 0 });
-  }
-
+  // Average daily work hours, ordered Mon → Sun and derived from real attendance rows.
+  const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const workHoursAccumulator: Record<string, { sum: number; count: number }> = {};
   attendanceHistory.forEach((curr: any) => {
-    const day = new Date(curr.date).toLocaleString('en-US', { weekday: 'short' });
+    const parsed = parseLeaveDate(curr.date);
+    if (!parsed) return;
+    const day = parsed.toLocaleDateString('en-US', { weekday: 'short' });
     if (!workHoursAccumulator[day]) workHoursAccumulator[day] = { sum: 0, count: 0 };
     workHoursAccumulator[day].sum += Number(curr.hours) || 0;
     workHoursAccumulator[day].count += 1;
   });
-  const workHoursData = Object.entries(workHoursAccumulator).map(([day, v]) => ({
-    day,
-    hours: Number((v.sum / v.count).toFixed(2)),
-  }));
+  const workHoursData = DAY_ORDER
+    .filter((day) => workHoursAccumulator[day])
+    .map((day) => ({
+      day,
+      hours: Number((workHoursAccumulator[day].sum / workHoursAccumulator[day].count).toFixed(2)),
+    }));
 
   const exportCSV = () => {
     const dateStr = getLocalToday();
@@ -201,31 +214,37 @@ export function ReportsView() {
             <p className="text-sm text-muted-foreground">Monthly percentage of active employees present</p>
           </div>
           <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={attendanceRateData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} fontSize={12} stroke="var(--muted-foreground)" />
-                <YAxis 
-                  domain={[80, 100]}
-                  axisLine={false} 
-                  tickLine={false} 
-                  fontSize={12} 
-                  stroke="var(--muted-foreground)"
-                  tickFormatter={(val) => `${val}%`}
-                />
-                <Tooltip 
-                  contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)" }}
-                  formatter={(value: number) => [`${value}%`, "Attendance"]}
-                />
-                <Area type="monotone" dataKey="rate" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorRate)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {attendanceRateData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                No attendance data recorded yet.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={attendanceRateData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} fontSize={12} stroke="var(--muted-foreground)" />
+                  <YAxis 
+                    domain={[0, 100]}
+                    axisLine={false} 
+                    tickLine={false} 
+                    fontSize={12} 
+                    stroke="var(--muted-foreground)"
+                    tickFormatter={(val) => `${val}%`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)" }}
+                    formatter={(value: number) => [`${value}%`, "Attendance"]}
+                  />
+                  <Area type="monotone" dataKey="rate" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorRate)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 

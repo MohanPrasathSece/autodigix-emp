@@ -40,6 +40,8 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS monthly_allowance INTEGER DEFAULT
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS monthly_benefits_deduction INTEGER DEFAULT 0;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS emergency_contact_name TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT;
+-- Income tax (TDS) percentage applied to gross salary during payroll runs (default 0 = no tax).
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS tax_percentage NUMERIC(5,2) NOT NULL DEFAULT 0;
 
 -- Drop and recreate the status constraint if it exists to allow 'Terminated'
 ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_status_check;

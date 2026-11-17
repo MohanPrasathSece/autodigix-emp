@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Plus, MoreHorizontal, Mail, Eye, EyeOff, Trash2, Wallet, User } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,27 +16,53 @@ import { hashPassword } from "@/shared/lib/hash";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const initialFormData = {
+  name: "",
+  email: "",
+  role: "",
+  department: "",
+  status: "Active",
+  monthly_base_salary: "",
+  monthly_allowance: "",
+  monthly_benefits_deduction: "",
+  tax_percentage: "",
+  payslip_email: "",
+  password: "AutoDigix2026!",
+  emergency_contact_name: "",
+  emergency_contact_phone: "",
+  access_level: "employee",
+};
+
 export function EmployeesPage() {
   const { data: employees = [], isLoading } = useEmployees();
   const addEmployeeMutation = useAddEmployee();
   const deleteEmployeeMutation = useDeleteEmployee();
   
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [q, setQ] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    role: "",
-    department: "",
-    monthly_base_salary: "",
-    password: "AutoDigix2026!",
-    emergency_contact_name: "",
-    emergency_contact_phone: "",
-    access_level: "employee",
-  });
+  const [formData, setFormData] = useState(initialFormData);
+
+  // Open the add-employee dialog when arriving via /admin/employees?add=1
+  // (e.g. from the Admin Dashboard's "Add Employee" buttons).
+  useEffect(() => {
+    if (searchParams.get("add") === "1") {
+      setIsAddModalOpen(true);
+    }
+  }, [searchParams]);
+
+  const handleDialogOpenChange = (open: boolean) => {
+    setIsAddModalOpen(open);
+    if (!open) {
+      // Clear the ?add=1 param so the modal doesn't reopen on refresh/back.
+      setSearchParams({}, { replace: true });
+    }
+  };
 
   const rows = employees.filter(
     (e: any) =>
@@ -45,8 +71,31 @@ export function EmployeesPage() {
   );
 
   const handleCreateAccount = async () => {
-    if (!formData.name || !formData.email || !formData.role) {
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    const normalizedPayslipEmail = formData.payslip_email.trim().toLowerCase();
+
+    if (!formData.name.trim() || !normalizedEmail || !formData.role.trim()) {
       toast.error("Please fill out name, email, and role.");
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+
+    if (normalizedPayslipEmail && !EMAIL_REGEX.test(normalizedPayslipEmail)) {
+      toast.error("Please enter a valid payslip email address.");
+      return;
+    }
+
+    // Block duplicates up front so we never surface a raw
+    // "duplicate key ... employees_email_key" Postgres error.
+    const isDuplicate = employees.some(
+      (emp: any) => (emp.email || "").trim().toLowerCase() === normalizedEmail,
+    );
+    if (isDuplicate) {
+      toast.error("An employee with this email already exists.");
       return;
     }
 
@@ -66,6 +115,7 @@ export function EmployeesPage() {
     const newId = `EMP-${maxIdNum + 1}`;
 
     const initials = formData.name
+      .trim()
       .split(" ")
       .map((n) => n[0])
       .join("")
@@ -77,26 +127,33 @@ export function EmployeesPage() {
     addEmployeeMutation.mutate(
       {
         id: newId,
-        name: formData.name,
-        email: formData.email,
+        name: formData.name.trim(),
+        email: normalizedEmail,
         role: formData.role,
         department: formData.department || "General",
-        status: "Active",
+        status: formData.status || "Active",
         attendance: 100,
         avatar_color: "from-blue-500 to-indigo-500",
         initials: initials,
         password: hashedPassword,
         tempPassword: formData.password,
         base_salary: Number(formData.monthly_base_salary || 0) * 12,
+        monthly_allowance: Number(formData.monthly_allowance || 0),
+        monthly_benefits_deduction: Number(formData.monthly_benefits_deduction || 0),
+        // Only send tax_percentage when present — the live DB may not have
+        // this column until the migration is applied.
+        ...(formData.tax_percentage.trim() !== "" ? { tax_percentage: Number(formData.tax_percentage) } : {}),
         emergency_contact_name: formData.emergency_contact_name,
         emergency_contact_phone: formData.emergency_contact_phone,
-        access_level: formData.access_level
+        access_level: formData.access_level,
+        payslip_email: normalizedPayslipEmail || normalizedEmail,
       },
       {
         onSuccess: () => {
           toast.success("Employee account created successfully.");
           setIsAddModalOpen(false);
-          setFormData({ name: "", email: "", role: "", department: "", monthly_base_salary: "", password: "AutoDigix2026!", emergency_contact_name: "", emergency_contact_phone: "", access_level: "employee" });
+          setSearchParams({}, { replace: true });
+          setFormData(initialFormData);
         }
       }
     );
@@ -132,7 +189,7 @@ export function EmployeesPage() {
         title="Employees"
         description="Directory of everyone at Acme Inc."
         actions={
-          <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+          <Dialog open={isAddModalOpen} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger asChild>
               <Button className="rounded-xl">
                 <Plus className="mr-1.5 size-4" /> Add Employee
@@ -163,6 +220,17 @@ export function EmployeesPage() {
                       value={formData.email}
                       onChange={e => setFormData({...formData, email: e.target.value})}
                     />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="payslip_email">Payslip Email</Label>
+                    <Input 
+                      id="payslip_email" 
+                      type="email" 
+                      placeholder="Defaults to work email" 
+                      value={formData.payslip_email}
+                      onChange={e => setFormData({...formData, payslip_email: e.target.value})}
+                    />
+                    <p className="text-[10px] text-muted-foreground">Monthly payslips are emailed here.</p>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="password">Temporary Password</Label>
@@ -219,7 +287,20 @@ export function EmployeesPage() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="salary">Monthly Salary (₹) <span className="text-red-500">*</span></Label>
+                    <Label>Status</Label>
+                    <Select value={formData.status} onValueChange={v => setFormData({...formData, status: v})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Remote">Remote</SelectItem>
+                        <SelectItem value="On Leave">On Leave</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="salary">Monthly Base Salary (₹) <span className="text-red-500">*</span></Label>
                     <Input 
                       id="salary" 
                       type="number" 
@@ -227,6 +308,40 @@ export function EmployeesPage() {
                       placeholder="e.g. 85000" 
                       value={formData.monthly_base_salary}
                       onChange={e => setFormData({...formData, monthly_base_salary: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="allowance">Monthly Allowance (₹)</Label>
+                    <Input 
+                      id="allowance" 
+                      type="number" 
+                      min="0"
+                      placeholder="e.g. 5000" 
+                      value={formData.monthly_allowance}
+                      onChange={e => setFormData({...formData, monthly_allowance: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="benefits">Monthly Benefits Deduction (₹)</Label>
+                    <Input 
+                      id="benefits" 
+                      type="number" 
+                      min="0"
+                      placeholder="e.g. 2000" 
+                      value={formData.monthly_benefits_deduction}
+                      onChange={e => setFormData({...formData, monthly_benefits_deduction: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="tax">Tax %</Label>
+                    <Input 
+                      id="tax" 
+                      type="number" 
+                      min="0"
+                      step="0.01"
+                      placeholder="e.g. 10" 
+                      value={formData.tax_percentage}
+                      onChange={e => setFormData({...formData, tax_percentage: e.target.value})}
                     />
                   </div>
                   
@@ -256,7 +371,7 @@ export function EmployeesPage() {
                 </div>
               </div>
               <DialogFooter className="mt-4">
-                <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => handleDialogOpenChange(false)}>Cancel</Button>
                 <Button onClick={handleCreateAccount} disabled={addEmployeeMutation.isPending}>
                   {addEmployeeMutation.isPending ? "Creating..." : "Create Account"}
                 </Button>

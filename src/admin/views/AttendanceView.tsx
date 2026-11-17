@@ -8,16 +8,26 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useEmployees, useAttendanceHistory } from "@/shared/api/queries";
 import { supabase } from "@/lib/supabaseClient";
 import { useQueryClient } from "@tanstack/react-query";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, subMonths, eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths } from "date-fns";
 import { getLocalToday, isOnLeaveOn } from "@/shared/lib/dateUtils";
 
-const getStatus = (progress: number, onLeave: boolean) => {
-  if (onLeave) return { text: "On Leave", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" };
-  if (progress === 0) return { text: "Absent", color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20" };
-  if (progress >= 100) return { text: "Completed Shift", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" };
-  return { text: "Working", color: "text-primary", bg: "bg-primary/10", border: "border-primary/20", active: true };
+type EmpState = "Working" | "On Leave" | "Clocked Out" | "Absent";
+
+// Coherent status pill derived from the employee's real attendance state.
+const getStatus = (state: EmpState) => {
+  switch (state) {
+    case "Working":
+      return { text: "Working", color: "text-primary", bg: "bg-primary/10", border: "border-primary/20", active: true };
+    case "On Leave":
+      return { text: "On Leave", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", active: false };
+    case "Clocked Out":
+      return { text: "Clocked Out", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", active: false };
+    default:
+      return { text: "Absent", color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", active: false };
+  }
 };
 
 // --- Components ---
@@ -158,12 +168,81 @@ function AbsenceCalendar() {
 }
 
 
-// Format seconds to HH:MM:SS
-function fmtSecs(secs: number) {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = secs % 60;
-  return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+// Format total seconds as "Xh Ym".
+function fmtHours(totalSeconds: number) {
+  const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+// Real attendance records (newest first) — one row per employee/day.
+function AttendanceHistoryTable({ rows, employees }: { rows: any[]; employees: any[] }) {
+  const nameById = useMemo(() => {
+    const map = new Map<string, string>();
+    (employees || []).forEach((e: any) => map.set(e.id, e.name));
+    return map;
+  }, [employees]);
+
+  const sorted = useMemo(() => {
+    return [...(rows || [])].sort((a: any, b: any) => {
+      if (a?.date !== b?.date) return String(b?.date || "").localeCompare(String(a?.date || ""));
+      return (Number(b?.id) || 0) - (Number(a?.id) || 0);
+    });
+  }, [rows]);
+
+  const fmtTime = (value?: string | null) => {
+    if (!value) return "—";
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  return (
+    <div className="rounded-2xl border bg-card p-6 shadow-soft max-w-3xl mx-auto">
+      <h3 className="text-lg font-bold mb-4">Attendance History</h3>
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Employee</TableHead>
+              <TableHead>Clock In</TableHead>
+              <TableHead>Clock Out</TableHead>
+              <TableHead className="text-right">Hours</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sorted.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">No attendance records yet.</TableCell>
+              </TableRow>
+            ) : (
+              sorted.map((r: any) => (
+                <TableRow key={r.id}>
+                  <TableCell className="text-xs tabular-nums">{r.date}</TableCell>
+                  <TableCell className="text-sm font-medium">{nameById.get(r.employee_id) || r.employee_id}</TableCell>
+                  <TableCell className="text-xs tabular-nums">{fmtTime(r.clock_in_time)}</TableCell>
+                  <TableCell className="text-xs tabular-nums">{fmtTime(r.clock_out_time)}</TableCell>
+                  <TableCell className="text-right text-sm tabular-nums">{Number(r.hours || 0).toFixed(2)}</TableCell>
+                  <TableCell>
+                    <span className={cn(
+                      "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border",
+                      r.status === "Clocked In"
+                        ? "bg-primary/10 text-primary border-primary/20"
+                        : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                    )}>
+                      {r.status}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
 }
 
 export function AttendancePage() {
@@ -186,92 +265,115 @@ export function AttendancePage() {
   const todayLabel = now.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const currentTimeLabel = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-  // Build today's attendance data from attendance_history
+  // Build today's attendance data from attendance_history (one row per employee/day).
   const today = getLocalToday();
 
-  // Map: employee_id -> { status, clock_in_time, hours }
+  // Most-recent today row per employee (ordered by id desc so duplicates resolve to the newest).
   const todayRecordsMap = useMemo(() => {
-    const map = new Map<string, { status: string; clock_in_time: string | null; hours: number }>();
-    (attendanceHistory as any[]).forEach((record: any) => {
-      if (record.date !== today) return;
-      map.set(record.employee_id, {
-        status: record.status,
-        clock_in_time: record.clock_in_time || record.created_at || null,
-        hours: record.hours || 0,
+    const map = new Map<string, { id: number; status: string; clock_in_time: string | null; clock_out_time: string | null; hours: number }>();
+    (attendanceHistory as any[])
+      .filter((record: any) => record?.date === today && record?.employee_id)
+      .sort((a: any, b: any) => (Number(b.id) || 0) - (Number(a.id) || 0))
+      .forEach((record: any) => {
+        if (map.has(record.employee_id)) return; // keep only the newest row
+        map.set(record.employee_id, {
+          id: record.id,
+          status: record.status,
+          clock_in_time: record.clock_in_time || record.created_at || null,
+          clock_out_time: record.clock_out_time || null,
+          hours: Math.max(0, Number(record.hours) || 0),
+        });
       });
-    });
     return map;
   }, [attendanceHistory, today]);
 
   // "On Leave" is derived from today's approved-leave (absent_dates) entries.
   const onLeaveToday = (emp: any): boolean => isOnLeaveOn(emp.absentDates, today);
 
-  // Real-time progress: for active employees, calculate % of shift elapsed
-  const getTodayProgress = (empId: string, onLeave: boolean): number => {
-    if (onLeave) return 0;
+  // Total hours worked today = accumulated hours + the running session.
+  const getTotalHours = (empId: string): number => {
     const rec = todayRecordsMap.get(empId);
     if (!rec) return 0;
-    if (rec.status === "Clocked Out") return 100;
-    // Currently clocked in — calculate real-time progress
+    let total = Math.max(0, Number(rec.hours) || 0);
     if (rec.status === "Clocked In" && rec.clock_in_time) {
-      const clockIn = new Date(rec.clock_in_time).getTime();
-      const elapsedHours = (now.getTime() - clockIn) / (1000 * 60 * 60);
-      return Math.min(Math.round((elapsedHours / SHIFT_HOURS) * 100), 99); // Cap at 99% while still working
+      const start = new Date(rec.clock_in_time).getTime();
+      if (!isNaN(start)) total += Math.max(0, (now.getTime() - start) / 3600000);
     }
-    return 0;
+    return Math.max(0, Number(total.toFixed(2)));
   };
 
-  // Get clock-in time for a specific employee
-  const getClockInTime = (empId: string): string | null => {
-    const rec = todayRecordsMap.get(empId);
-    return rec?.clock_in_time || null;
+  // Progress = total hours worked today vs the full shift length.
+  const getTodayProgress = (empId: string): number => {
+    return Math.min(100, Math.round((getTotalHours(empId) / SHIFT_HOURS) * 100));
   };
 
-  // Is employee currently working?
-  const isEmployeeWorking = (empId: string): boolean => {
-    const rec = todayRecordsMap.get(empId);
-    return rec?.status === "Clocked In";
+  // Coherent per-employee status for the live board.
+  const getEmployeeState = (emp: any): EmpState => {
+    const rec = todayRecordsMap.get(emp.id);
+    if (rec?.status === "Clocked In") return "Working";
+    if (onLeaveToday(emp)) return "On Leave";
+    if (rec?.status === "Clocked Out") return "Clocked Out";
+    return "Absent";
   };
 
-  const activeCount = employees.filter((e: any) => isEmployeeWorking(e.id) && !onLeaveToday(e)).length;
-  const leaveCount = employees.filter((e: any) => onLeaveToday(e)).length;
-  const completedCount = employees.filter((e: any) => {
-    const rec = todayRecordsMap.get(e.id);
-    return rec?.status === "Clocked Out" && !onLeaveToday(e);
-  }).length;
-  const notStartedCount = employees.filter((e: any) => !todayRecordsMap.has(e.id) && !onLeaveToday(e)).length;
+  const activeCount = employees.filter((e: any) => getEmployeeState(e) === "Working").length;
+  const completedCount = employees.filter((e: any) => getEmployeeState(e) === "Clocked Out").length;
+  const leaveCount = employees.filter((e: any) => getEmployeeState(e) === "On Leave").length;
+  const notStartedCount = employees.filter((e: any) => getEmployeeState(e) === "Absent").length;
 
   const handleConfirm = async () => {
     if (!confirmAction) return;
+    setIsConfirming(true);
 
     try {
+      const existing = todayRecordsMap.get(confirmAction.empId) || null;
+      const nowIso = new Date().toISOString();
+
       if (confirmAction.type === "Start") {
-        // Admin override: delete any existing record for today first, then insert fresh
-        await supabase
-          .from('attendance_history')
-          .delete()
-          .eq('employee_id', confirmAction.empId)
-          .eq('date', today);
-
-        const { error } = await supabase.from('attendance_history').insert([{
-          date: today,
-          employee_id: confirmAction.empId,
-          hours: 0,
-          status: 'Clocked In',
-          clock_in_time: new Date().toISOString(),
-        }]);
-        if (error) throw new Error(error.message);
+        // Mirror a normal Clock In: keep accumulated hours and resume the session.
+        if (existing) {
+          const { error } = await supabase
+            .from('attendance_history')
+            .update({
+              status: 'Clocked In',
+              clock_in_time: nowIso,
+              clock_out_time: null,
+            })
+            .eq('id', existing.id);
+          if (error) throw new Error(error.message);
+        } else {
+          const { error } = await supabase.from('attendance_history').insert([{
+            date: today,
+            employee_id: confirmAction.empId,
+            hours: 0,
+            status: 'Clocked In',
+            clock_in_time: nowIso,
+          }]);
+          if (error) throw new Error(error.message);
+        }
       } else {
-        // Clock Out — calculate hours from clock-in time
-        const clockIn = getClockInTime(confirmAction.empId);
-        const hoursWorked = clockIn ? (Date.now() - new Date(clockIn).getTime()) / (1000 * 60 * 60) : 0;
+        // Force Stop: accumulate this session's length onto the day's total.
+        const startMs = existing?.clock_in_time ? new Date(existing.clock_in_time).getTime() : NaN;
+        const sessionHours = isNaN(startMs) ? 0 : Math.max(0, (Date.now() - startMs) / 3600000);
+        const totalHours = Number(((existing ? Math.max(0, Number(existing.hours) || 0) : 0) + sessionHours).toFixed(2));
 
-        const { error } = await supabase.from('attendance_history').update({
-          hours: Number(hoursWorked.toFixed(2)),
-          status: 'Clocked Out',
-          clock_out_time: new Date().toISOString(),
-        }).eq('employee_id', confirmAction.empId).eq('date', today);
-        if (error) throw new Error(error.message);
+        if (existing) {
+          const { error } = await supabase.from('attendance_history').update({
+            hours: Math.max(0, totalHours),
+            status: 'Clocked Out',
+            clock_out_time: nowIso,
+          }).eq('id', existing.id);
+          if (error) throw new Error(error.message);
+        } else {
+          const { error } = await supabase.from('attendance_history').insert([{
+            date: today,
+            employee_id: confirmAction.empId,
+            hours: Math.max(0, totalHours),
+            status: 'Clocked Out',
+            clock_out_time: nowIso,
+          }]);
+          if (error) throw new Error(error.message);
+        }
       }
 
       // Manually invalidate to ensure the view refetches
@@ -282,6 +384,8 @@ export function AttendancePage() {
       setConfirmAction(null);
     } catch (e: any) {
       toast.error(e.message || `Failed to ${confirmAction.type.toLowerCase()} work`);
+    } finally {
+      setIsConfirming(false);
     }
   };
 
@@ -295,7 +399,7 @@ export function AttendancePage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="rounded-xl bg-muted/60 p-1 mb-6">
           <TabsTrigger value="live" className="rounded-lg">Live Tracker</TabsTrigger>
-          <TabsTrigger value="history" className="rounded-lg">Absence History</TabsTrigger>
+          <TabsTrigger value="history" className="rounded-lg">History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="live" className="space-y-6">
@@ -343,17 +447,19 @@ export function AttendancePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {employees.map((emp: any) => {
               const onLeave = onLeaveToday(emp);
-              const progress = getTodayProgress(emp.id, onLeave);
-              const working = isEmployeeWorking(emp.id) && !onLeave;
-              const empClockIn = getClockInTime(emp.id);
-              const status = getStatus(progress, onLeave);
-              
-              let ringColor = "var(--primary)";
-              if (onLeave) ringColor = "#f59e0b"; // amber-500
-              else if (progress === 0) ringColor = "#ef4444"; // red-500
-              else if (progress >= 100) ringColor = "#10b981"; // emerald-500
+              const state = getEmployeeState(emp);
+              const working = state === "Working";
+              const progress = getTodayProgress(emp.id);
+              const status = getStatus(state);
+              const empClockIn = working ? (todayRecordsMap.get(emp.id)?.clock_in_time || null) : null;
+              const totalSeconds = Math.floor(getTotalHours(emp.id) * 3600);
 
-              const canStart = progress === 0 && !onLeave;
+              let ringColor = "var(--primary)";
+              if (state === "On Leave") ringColor = "#f59e0b"; // amber-500
+              else if (state === "Absent") ringColor = "#ef4444"; // red-500
+              else if (state === "Clocked Out") ringColor = "#10b981"; // emerald-500
+
+              const canStart = !working && !onLeave;
               const canStop = working;
 
               return (
@@ -400,14 +506,17 @@ export function AttendancePage() {
                       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                       <div className="flex items-center gap-1 font-mono"><Clock className="size-3" /> {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
                     </div>
-                    {working && empClockIn && (
-                      <div className="text-center">
-                        <span className="text-[10px] text-muted-foreground">Started </span>
-                        <span className="text-[10px] font-semibold">{new Date(empClockIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-                        <span className="mx-1 text-[10px] text-muted-foreground">·</span>
-                        <span className="font-mono text-[10px] font-bold text-primary">{fmtSecs(Math.floor((now.getTime() - new Date(empClockIn).getTime()) / 1000))}</span>
-                      </div>
-                    )}
+                    <div className="text-center">
+                      <span className="text-[10px] text-muted-foreground">Today: </span>
+                      <span className="font-mono text-[10px] font-bold text-primary">{fmtHours(totalSeconds)}</span>
+                      {working && empClockIn && (
+                        <>
+                          <span className="mx-1 text-[10px] text-muted-foreground">·</span>
+                          <span className="text-[10px] text-muted-foreground">Session since </span>
+                          <span className="text-[10px] font-semibold">{new Date(empClockIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -416,6 +525,7 @@ export function AttendancePage() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-6">
+          <AttendanceHistoryTable rows={attendanceHistory as any[]} employees={employees as any[]} />
           <AbsenceCalendar />
         </TabsContent>
       </Tabs>

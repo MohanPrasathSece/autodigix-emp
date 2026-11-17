@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Plus, Calendar as CalendarIcon, AlertCircle, Trash2, CalendarCheck } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,11 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { format, isWeekend, eachDayOfInterval } from "date-fns";
+import { format, isWeekend, eachDayOfInterval, isBefore, startOfToday, startOfMonth } from "date-fns";
 import { toLocalISO, formatLeaveDate } from "@/shared/lib/dateUtils";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useAttendance } from "@/lib/attendanceEngine";
-import { useLeaveRequests, useEmployees } from "@/shared/api/queries";
+import { useLeaveRequests, useEmployees, useHolidays } from "@/shared/api/queries";
 import { useApplyLeave, useDeleteLeaveRequest } from "@/shared/api/mutations";
 import { useAuthStore } from "@/shared/store/auth";
 
@@ -25,6 +24,7 @@ export function LeavePage() {
   const { user } = useAuthStore();
   const { data: allLeaveRequests = [], isLoading } = useLeaveRequests();
   const { data: employees = [] } = useEmployees();
+  const { data: holidays = [] } = useHolidays();
   const applyLeaveMutation = useApplyLeave();
   const deleteLeaveMutation = useDeleteLeaveRequest();
 
@@ -50,19 +50,52 @@ export function LeavePage() {
   const [isHalfDay, setIsHalfDay] = useState(false);
   const [halfDaySession, setHalfDaySession] = useState("Morning");
 
-  // Calculate actual business days (ignoring weekends)
+  // Company holidays as a Set of "YYYY-MM-DD" keys.
+  const holidaySet = useMemo(
+    () =>
+      new Set(
+        (holidays as any[])
+          .map((h: any) => String(h?.date ?? "").slice(0, 10))
+          .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+      ),
+    [holidays]
+  );
+
+  const today = useMemo(() => startOfToday(), []);
+
+  // A day is non-working when it is a weekend or a company holiday.
+  const isNonWorking = useCallback(
+    (date: Date) => isWeekend(date) || holidaySet.has(toLocalISO(date)),
+    [holidaySet]
+  );
+
+  // Any past date, weekend or holiday is unselectable.
+  const isDateDisabled = useCallback(
+    (date: Date) => isBefore(date, today) || isNonWorking(date),
+    [isNonWorking, today]
+  );
+
+  // While picking the END date, everything before the selected start is blocked too.
+  const isRangeEndDisabled = useCallback(
+    (date: Date) =>
+      isDateDisabled(date) ||
+      (!!range.from && !range.to && isBefore(date, range.from)),
+    [isDateDisabled, range.from, range.to]
+  );
+
+  // Business days exclude weekends AND company holidays.
   const businessDays = useMemo(() => {
     if (!range.from) return 0;
-    
+
     if (isHalfDay) {
-      return isWeekend(range.from) ? 0 : 0.5;
+      return isNonWorking(range.from) ? 0 : 0.5;
     }
-    
-    if (!range.to) return isWeekend(range.from) ? 0 : 1;
-    
+
+    if (!range.to) return isNonWorking(range.from) ? 0 : 1;
+
     const days = eachDayOfInterval({ start: range.from, end: range.to });
-    return days.filter(d => !isWeekend(d)).length;
-  }, [range, isHalfDay]);
+    return days.filter((d) => !isNonWorking(d)).length;
+  }, [range, isHalfDay, isNonWorking]);
 
   // Validation Rules
   const maxContinuousExceeded = leaveType === "paid" && businessDays >= 6;
@@ -73,13 +106,43 @@ export function LeavePage() {
   const canSubmit = businessDays > 0 && !maxContinuousExceeded && !balanceExceeded && subject.trim().length > 0;
 
   const handleSubmit = () => {
-    if (!canSubmit || !user) return;
+    if (!user) return;
+
+    if (!range.from) {
+      toast.error("Please select a start date.");
+      return;
+    }
+    if (isBefore(range.from, today)) {
+      toast.error("You cannot apply for leave in the past.");
+      return;
+    }
+    const endDate = isHalfDay ? range.from : range.to;
+    if (endDate && isBefore(endDate, range.from)) {
+      toast.error("End date cannot be before the start date.");
+      return;
+    }
+    if (businessDays <= 0) {
+      toast.error("Please pick a valid working day (weekends and holidays are excluded).");
+      return;
+    }
+    if (!subject.trim()) {
+      toast.error("Please add a subject for your request.");
+      return;
+    }
+    if (maxContinuousExceeded) {
+      toast.error("You cannot take 6 or more continuous paid leaves.");
+      return;
+    }
+    if (balanceExceeded) {
+      toast.error("You do not have enough paid leaves.");
+      return;
+    }
 
     let displayType = "Vacation";
     if (leaveType === "sick") displayType = "Sick Leave";
     if (leaveType === "unpaid") displayType = "Unpaid Leave";
 
-    const fromDate = toLocalISO(range.from!);
+    const fromDate = toLocalISO(range.from);
     const toDate = isHalfDay ? fromDate : (range.to ? toLocalISO(range.to) : fromDate);
 
     applyLeaveMutation.mutate(
@@ -157,7 +220,9 @@ export function LeavePage() {
                             onSelect={(v: any) => setRange({ from: v })} 
                             numberOfMonths={1} 
                             className="p-3 pointer-events-auto"
-                            disabled={(date) => isWeekend(date)}
+                            defaultMonth={today}
+                            startMonth={startOfMonth(today)}
+                            disabled={isDateDisabled}
                           />
                         ) : (
                           <Calendar 
@@ -166,7 +231,9 @@ export function LeavePage() {
                             onSelect={(v: any) => setRange(v || {})} 
                             numberOfMonths={1} 
                             className="p-3 pointer-events-auto"
-                            disabled={(date) => isWeekend(date)}
+                            defaultMonth={today}
+                            startMonth={startOfMonth(today)}
+                            disabled={isRangeEndDisabled}
                           />
                         )}
                       </PopoverContent>

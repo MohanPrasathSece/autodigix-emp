@@ -54,6 +54,23 @@ export const getMonthKey = (value: string | Date): string => {
 };
 
 /**
+ * Number of weekdays (Mon–Fri) in the month described by a "YYYY-MM" key.
+ * Used as the divisor for the per-day salary rate so unpaid leave is priced
+ * against the real working days of that month instead of a fixed 22.
+ */
+export const getWorkingDaysInMonth = (monthKey: string): number => {
+  const [y, m] = String(monthKey).split('-').map(Number);
+  if (!y || !m) return 22;
+  const daysInMonth = new Date(y, m, 0).getDate();
+  let count = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dow = new Date(y, m - 1, day).getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count || 22;
+};
+
+/**
  * True when an employee has an approved-leave entry (absent_dates row) on the
  * given local date. Used to derive "On Leave" status instead of relying on the
  * manually-set employees.status column.

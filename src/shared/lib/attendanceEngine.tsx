@@ -121,6 +121,11 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
   const startWork = async () => {
     if (!user?.id) return;
 
+    if (new Date().getHours() >= 19) {
+      toast.error("Shift Ended", { description: "Today's shift ended at 7:00 PM. Clock-in is closed for today." });
+      return;
+    }
+
     const now = Date.now();
     const carried = Math.max(0, seconds); // total time already worked today
     setBaseSeconds(carried);

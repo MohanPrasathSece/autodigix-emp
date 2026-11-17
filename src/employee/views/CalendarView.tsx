@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Info, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Info, Check } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ type DayKind = "present" | "leave-approved" | "leave-pending" | "govt-holiday" |
 
 const kindStyles: Record<DayKind, string> = {
   present: "bg-primary/10 text-primary border-primary/20 hover:border-primary/40",
-  "leave-approved": "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30 hover:border-red-500/50 font-bold overflow-hidden",
+  "leave-approved": "bg-teal-500/15 text-teal-800 dark:text-teal-200 border-teal-500/30 hover:border-teal-500/50 font-bold overflow-hidden",
   "leave-pending": "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 hover:border-amber-500/40",
   "govt-holiday": "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-500/40 hover:border-emerald-500/60 font-semibold",
   weekend: "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20 hover:border-green-500/40",
@@ -165,8 +165,10 @@ export function CalendarPage() {
                   )}
                 >
                   {c.kind === "leave-approved" && (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none">
-                      <X className="size-full max-w-10 max-h-10 text-red-600" strokeWidth={1} />
+                    <div className="absolute top-1 right-1 pointer-events-none">
+                      <span className="flex size-3.5 items-center justify-center rounded-full bg-teal-600 text-white shadow-xs">
+                        <Check className="size-2.5" strokeWidth={3} />
+                      </span>
                     </div>
                   )}
                   <span className="relative z-10">{c.date && c.date.getDate()}</span>

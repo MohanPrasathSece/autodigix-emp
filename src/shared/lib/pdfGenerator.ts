@@ -23,163 +23,201 @@ export function generatePayslipPDFBase64(data: PayslipPDFData): string {
     format: 'a4',
   });
 
-  // Colors
-  const primaryColor = [30, 41, 59]; // Slate 800
-  const textDark = [15, 23, 42]; // Slate 900
-  const textMuted = [100, 116, 139]; // Slate 500
+  const navyDark = [15, 23, 42];      // #0f172a
+  const brandBlue = [37, 99, 235];    // #2563eb
+  const textDark = [30, 41, 59];      // #1e293b
+  const textMuted = [100, 116, 139];  // #64748b
+  const borderColor = [226, 232, 240];// #e2e8f0
+  const bgCard = [248, 250, 252];     // #f8fafc
 
   // 1. Top Header Banner
-  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFillColor(navyDark[0], navyDark[1], navyDark[2]);
   doc.rect(0, 0, 210, 36, 'F');
 
+  // Accent line
+  doc.setFillColor(brandBlue[0], brandBlue[1], brandBlue[2]);
+  doc.rect(0, 0, 210, 3, 'F');
+
+  // Brand title
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(22);
+  doc.setFontSize(20);
   doc.text('AUTODIGIX HR', 14, 18);
 
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
-  doc.text('MONTHLY PAYSLIP STATEMENT', 14, 26);
+  doc.setTextColor(203, 213, 225);
+  doc.text('MONTHLY SALARY STATEMENT / PAYSLIP', 14, 26);
 
   // Period Badge on Header Right
+  doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.text(`Period: ${data.period}`, 196, 18, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`, 196, 26, { align: 'right' });
+  doc.setFontSize(8.5);
+  doc.setTextColor(203, 213, 225);
+  const formattedDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  doc.text(`Generated: ${formattedDate}`, 196, 26, { align: 'right' });
 
   // 2. Employee Details Card
-  let y = 44;
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(14, y, 182, 38, 3, 3, 'FD');
+  let y = 42;
+  doc.setFillColor(bgCard[0], bgCard[1], bgCard[2]);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.roundedRect(14, y, 182, 36, 3, 3, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text('EMPLOYEE DETAILS', 20, y + 10);
+  doc.setFontSize(8.5);
+  doc.setTextColor(brandBlue[0], brandBlue[1], brandBlue[2]);
+  doc.text('EMPLOYEE DETAILS', 20, y + 9);
 
-  doc.setFontSize(9.5);
-  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.line(20, y + 12, 190, y + 12);
+
+  doc.setFontSize(9);
 
   // Col 1
-  doc.setFont('helvetica', 'bold');
-  doc.text('Employee Name:', 20, y + 19);
   doc.setFont('helvetica', 'normal');
-  doc.text(data.employeeName, 52, y + 19);
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+  doc.text('Employee Name:', 20, y + 20);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+  doc.text(data.employeeName || '—', 56, y + 20);
 
-  doc.setFont('helvetica', 'bold');
-  doc.text('Employee ID:', 20, y + 28);
   doc.setFont('helvetica', 'normal');
-  doc.text(data.employeeId, 52, y + 28);
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+  doc.text('Employee ID:', 20, y + 28);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+  doc.text(data.employeeId || '—', 56, y + 28);
 
   // Col 2
-  doc.setFont('helvetica', 'bold');
-  doc.text('Department:', 115, y + 19);
   doc.setFont('helvetica', 'normal');
-  doc.text(data.department, 142, y + 19);
-
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+  doc.text('Department:', 115, y + 20);
   doc.setFont('helvetica', 'bold');
+  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+  doc.text(data.department || 'General', 145, y + 20);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
   doc.text('Designation:', 115, y + 28);
-  doc.setFont('helvetica', 'normal');
-  doc.text(data.role, 142, y + 28);
-
-  // 3. Compensation Breakdown Header
-  y = 90;
-
-  // Earnings Header Block
-  doc.setFillColor(239, 246, 255); // Light blue
-  doc.rect(14, y, 88, 9, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(30, 64, 175);
-  doc.text('EARNINGS', 18, y + 6);
-  doc.text('AMOUNT (₹)', 96, y + 6, { align: 'right' });
+  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+  doc.text(data.role || 'Employee', 145, y + 28);
 
-  // Deductions Header Block
-  doc.setFillColor(254, 242, 242); // Light red
-  doc.rect(108, y, 88, 9, 'F');
-  doc.setTextColor(153, 27, 27);
-  doc.text('DEDUCTIONS', 112, y + 6);
-  doc.text('AMOUNT (₹)', 190, y + 6, { align: 'right' });
+  // 3. Compensation Breakdown Section
+  y = 86;
+
+  // Earnings Table (Left Column: x=14 to 102)
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.rect(14, y, 88, 8.5, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+  doc.text('EARNINGS', 18, y + 5.5);
+  doc.text('AMOUNT (INR)', 98, y + 5.5, { align: 'right' });
+
+  // Deductions Table (Right Column: x=108 to 196)
+  doc.setFillColor(241, 245, 249);
+  doc.rect(108, y, 88, 8.5, 'FD');
+
+  doc.text('DEDUCTIONS', 112, y + 5.5);
+  doc.text('AMOUNT (INR)', 192, y + 5.5, { align: 'right' });
 
   y += 14;
   doc.setFontSize(9);
-  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
 
   // Row 1
   doc.setFont('helvetica', 'normal');
+  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
   doc.text('Basic Salary', 18, y);
-  doc.text(`₹ ${data.base_amount.toLocaleString('en-IN')}`, 96, y, { align: 'right' });
+  doc.text(`Rs. ${(data.base_amount || 0).toLocaleString('en-IN')}`, 98, y, { align: 'right' });
 
   doc.text('Income Tax (TDS)', 112, y);
-  doc.text(`₹ ${data.tax_amount.toLocaleString('en-IN')}`, 190, y, { align: 'right' });
+  doc.text(`Rs. ${(data.tax_amount || 0).toLocaleString('en-IN')}`, 192, y, { align: 'right' });
 
   // Row 2
-  y += 9;
+  y += 8;
   doc.text('Allowances', 18, y);
-  doc.text(`₹ ${data.allowances_amount.toLocaleString('en-IN')}`, 96, y, { align: 'right' });
+  doc.text(`Rs. ${(data.allowances_amount || 0).toLocaleString('en-IN')}`, 98, y, { align: 'right' });
 
   doc.text('Benefits & Insurance', 112, y);
-  doc.text(`₹ ${data.benefits_amount.toLocaleString('en-IN')}`, 190, y, { align: 'right' });
+  doc.text(`Rs. ${(data.benefits_amount || 0).toLocaleString('en-IN')}`, 192, y, { align: 'right' });
 
   // Row 3 (Unpaid Leave if present)
-  y += 9;
-  if (data.unpaid_leave_amount > 0) {
+  y += 8;
+  if ((data.unpaid_leave_amount || 0) > 0) {
     doc.text('Unpaid Leave Deduction', 112, y);
-    doc.text(`₹ ${data.unpaid_leave_amount.toLocaleString('en-IN')}`, 190, y, { align: 'right' });
-    y += 9;
+    doc.text(`Rs. ${data.unpaid_leave_amount.toLocaleString('en-IN')}`, 192, y, { align: 'right' });
+    y += 8;
   }
 
-  // Divider Lines
+  // Dividers
   y += 2;
-  doc.setDrawColor(203, 213, 225);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
   doc.line(14, y, 102, y);
   doc.line(108, y, 196, y);
 
-  // Totals
-  y += 7;
+  // Totals Row
+  y += 6.5;
   doc.setFont('helvetica', 'bold');
-  doc.text('Total Gross Salary', 18, y);
-  doc.text(`₹ ${data.gross.toLocaleString('en-IN')}`, 96, y, { align: 'right' });
+  doc.text('Total Gross Earnings', 18, y);
+  doc.text(`Rs. ${(data.gross || 0).toLocaleString('en-IN')}`, 98, y, { align: 'right' });
 
-  const totalDeductions = data.tax_amount + data.benefits_amount + data.unpaid_leave_amount;
+  const totalDeductions = (data.tax_amount || 0) + (data.benefits_amount || 0) + (data.unpaid_leave_amount || 0);
   doc.text('Total Deductions', 112, y);
-  doc.text(`₹ ${totalDeductions.toLocaleString('en-IN')}`, 190, y, { align: 'right' });
+  doc.text(`Rs. ${totalDeductions.toLocaleString('en-IN')}`, 192, y, { align: 'right' });
 
-  // 4. Net Salary Highlight Box
+  // 4. Net Salary Highlight Box (Purely Net Statement)
   y += 16;
-  doc.setFillColor(240, 253, 244);
-  doc.setDrawColor(34, 197, 94);
+  doc.setFillColor(240, 253, 244); // Soft emerald tint
+  doc.setDrawColor(34, 197, 94);   // Green-500
   doc.roundedRect(14, y, 182, 24, 3, 3, 'FD');
 
   doc.setTextColor(22, 101, 52);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text('NET TAKE-HOME PAY', 22, y + 14);
-
-  doc.setFontSize(16);
-  doc.text(`₹ ${data.net.toLocaleString('en-IN')}`, 190, y + 15, { align: 'right' });
-
-  // 5. Payment Note & Footer
-  y += 36;
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(14, y, 182, 18, 2, 2, 'FD');
+  doc.setFontSize(10.5);
+  doc.text('TOTAL NET PAYABLE', 22, y + 11);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-  doc.text('Payment Status: Paid via Direct Deposit', 20, y + 7);
-  doc.text('Note: For any discrepancies in this payslip, please contact the HR department.', 20, y + 13);
-
-  // Footer Disclaimer
   doc.setFontSize(8);
+  doc.setTextColor(21, 128, 61);
+  doc.text(`Monthly salary entitlement for ${data.period}`, 22, y + 17);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(22, 101, 52);
+  doc.text(`Rs. ${(data.net || 0).toLocaleString('en-IN')}`, 190, y + 15, { align: 'right' });
+
+  // 5. Statement Note (Purely statement notice, no direct payment claims)
+  y += 34;
+  doc.setFillColor(bgCard[0], bgCard[1], bgCard[2]);
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.roundedRect(14, y, 182, 22, 2.5, 2.5, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(textDark[0], textDark[1], textDark[2]);
+  doc.text('STATEMENT NOTICE', 20, y + 7.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+  doc.text('This document is an official monthly salary slip showing gross earnings, applicable statutory deductions,', 20, y + 12.5);
+  doc.text('and the net payable amount. For any payroll inquiries or discrepancies, please contact the HR department.', 20, y + 17);
+
+  // 6. Footer Disclaimer
+  doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+  doc.line(14, 272, 196, 272);
+
+  doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
-  doc.text('This is a computer-generated document and does not require a physical signature.', 105, 275, { align: 'center' });
-  doc.text('Autodigix HR Management System • Confidential', 105, 280, { align: 'center' });
+  doc.text('This is a computer-generated payslip statement and does not require a physical signature.', 105, 277, { align: 'center' });
+  doc.text('Autodigix HR Management System • Confidential & Private', 105, 281.5, { align: 'center' });
 
   return doc.output('datauristring').split(',')[1];
 }

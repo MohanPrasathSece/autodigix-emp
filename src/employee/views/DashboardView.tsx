@@ -61,19 +61,33 @@ export function EmployeeDashboard() {
           <div className="font-mono text-4xl sm:text-5xl font-black tracking-tight tabular-nums text-primary">
             {formatTime(seconds)}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">{isWorking ? "You are currently clocked in and tracking time." : "You are currently clocked out. You can resume before 7 PM."}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {isWorking
+              ? "You are currently clocked in and tracking time."
+              : isAfter7PM
+                ? "Today's shift has ended (7:00 PM). Clock-in is closed for today."
+                : "You are currently clocked out. You can resume before 7:00 PM."}
+          </p>
         </div>
 
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button 
               size="default"
-              variant={isWorking ? "destructive" : "default"} 
+              variant={isWorking ? "destructive" : isAfter7PM ? "secondary" : "default"} 
               className="z-10 rounded-xl px-8 shadow-sm hover:scale-105 transition-all mt-2"
               disabled={isLoading || (!isWorking && isAfter7PM)}
             >
               <Clock className="mr-2 size-4" /> 
-              {isLoading ? "Loading…" : isWorking ? "Stop Work" : seconds > 0 ? "Resume Work" : "Start Work"}
+              {isLoading
+                ? "Loading…"
+                : isWorking
+                  ? "Stop Work"
+                  : isAfter7PM
+                    ? "Shift Ended"
+                    : seconds > 0
+                      ? "Resume Work"
+                      : "Start Work"}
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent className="rounded-xl">

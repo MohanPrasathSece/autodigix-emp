@@ -147,8 +147,8 @@ export function EmployeePayslipsView() {
                       <h3 className="font-semibold text-base">{slip.period}</h3>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-muted-foreground">Monthly Salary</span>
-                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] h-4 px-1.5 rounded-sm">
-                          {slip.status}
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] h-4 px-1.5 rounded-sm">
+                          {slip.status === "Paid" ? "Issued" : slip.status || "Issued"}
                         </Badge>
                       </div>
                     </div>

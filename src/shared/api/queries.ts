@@ -7,7 +7,9 @@ export const useEmployees = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('employees')
-        .select('*, avatarColor:avatar_color, avatarUrl:avatar_url, absentDates:absent_dates(date, subject)');
+        .select(
+          'id, name, email, payslip_email, role, department, status, attendance, initials, phone, location, manager_id, base_salary, leave_balance, monthly_allowance, monthly_benefits_deduction, emergency_contact_name, emergency_contact_phone, created_at, access_level, avatarColor:avatar_color, avatarUrl:avatar_url, absentDates:absent_dates(date, subject)'
+        );
       if (error) throw new Error(error.message);
       return data;
     },
@@ -25,9 +27,9 @@ export const useHolidays = () => {
   });
 };
 
-export const useNotifications = (userId?: string) => {
+export const useNotifications = (userId?: string, isAdmin = false) => {
   return useQuery({
-    queryKey: ['notifications', userId],
+    queryKey: ['notifications', userId, isAdmin],
     queryFn: async () => {
       const { data, error: fetchError } = await supabase
         .from('notifications')
@@ -36,11 +38,15 @@ export const useNotifications = (userId?: string) => {
 
       if (fetchError) throw new Error(fetchError.message);
 
-      // Filter client-side to avoid PostgREST reserved keyword issues with "all"
-      if (userId) {
-        return (data || []).filter((n: any) => n.target_id === 'all' || n.target_id === userId);
-      }
-      return (data || []).filter((n: any) => n.target_id === 'all');
+      // Filter client-side to avoid PostgREST reserved keyword issues with "all".
+      // - 'all'      -> broadcast to everyone (announcements)
+      // - 'admin'    -> admin activity log (admins only)
+      // - <id>       -> personal notification for that employee
+      return (data || []).filter((n: any) =>
+        n.target_id === 'all' ||
+        (isAdmin && n.target_id === 'admin') ||
+        (!!userId && n.target_id === userId)
+      );
     },
   });
 };
@@ -49,7 +55,7 @@ export const useLeaveRequests = () => {
   return useQuery({
     queryKey: ['leaveRequests'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('leave_requests').select('id, employee_id, name, type, from:from_date, to:to_date, days, status, subject, description');
+      const { data, error } = await supabase.from('leave_requests').select('id, employee_id, name, type, from:from_date, to:to_date, days, status, subject, description, lop_days');
       if (error) throw new Error(error.message);
       return data;
     },

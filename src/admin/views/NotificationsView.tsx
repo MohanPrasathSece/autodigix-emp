@@ -5,29 +5,56 @@ import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/shared/store/auth";
 
 import { useNotifications } from "@/shared/api/queries";
-import { useMarkNotificationRead } from "@/shared/api/mutations";
+import { useMarkNotificationRead, useClearNotifications } from "@/shared/api/mutations";
+import { useNotificationRead } from "@/shared/hooks/use-notification-read";
 
 export function AdminNotificationsView() {
   const { user } = useAuthStore();
-  const { data: notifications = [], isLoading } = useNotifications(user?.id);
+  const { data: notifications = [], isLoading } = useNotifications(user?.id, true);
   const markAsRead = useMarkNotificationRead();
+  const clearNotifications = useClearNotifications();
+  const { isRead, isBroadcast, markLocalRead } = useNotificationRead(user?.id);
+
+  const markOne = (n: any) => {
+    if (isRead(n)) return;
+    if (isBroadcast(n)) markLocalRead(n.id);
+    else markAsRead.mutate(n.id);
+  };
 
   const handleMarkAllRead = () => {
-    notifications.forEach((n: any) => {
-      if (!n.is_read) markAsRead.mutate(n.id);
-    });
+    notifications.forEach((n: any) => markOne(n));
+  };
+
+  const handleClearLogs = () => {
+    if (window.confirm("Delete all activity logs? This cannot be undone.")) {
+      clearNotifications.mutate();
+    }
   };
 
   // Filter logs to last 7 days only (auto-deletion policy)
   const recentLogs = notifications.filter((log: any) => {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    return new Date(log.created_at) >= oneWeekAgo;
+    const created = log.created_at ? new Date(log.created_at) : null;
+    return created && !isNaN(created.getTime()) ? created >= oneWeekAgo : true;
   });
 
-  // Group logs by day string (e.g., "Today", "Yesterday", "2 Days ago")
+  // Group logs by day (e.g., "Today", "Yesterday", "3 Days ago"), using created_at.
   const groupedLogs = recentLogs.reduce((acc: any, log: any) => {
-    const dayString = log.time.split(",")[0] || "Past";
+    const created = log.created_at ? new Date(log.created_at) : null;
+    let dayString = "Earlier";
+    if (created && !isNaN(created.getTime())) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const thatDay = new Date(created);
+      thatDay.setHours(0, 0, 0, 0);
+      const diff = Math.round((today.getTime() - thatDay.getTime()) / 86400000);
+      dayString =
+        diff <= 0 ? "Today" :
+        diff === 1 ? "Yesterday" :
+        diff < 7 ? `${diff} Days ago` :
+        thatDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
     if (!acc[dayString]) acc[dayString] = [];
     acc[dayString].push(log);
     return acc;
@@ -43,7 +70,12 @@ export function AdminNotificationsView() {
             <Button variant="outline" className="rounded-xl" onClick={handleMarkAllRead}>
               <CheckCircle2 className="mr-2 size-4" /> Mark all read
             </Button>
-            <Button variant="outline" className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 border-red-200 dark:border-red-900/50">
+            <Button
+              variant="outline"
+              className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 border-red-200 dark:border-red-900/50"
+              onClick={handleClearLogs}
+              disabled={clearNotifications.isPending || recentLogs.length === 0}
+            >
               <Trash2 className="mr-2 size-4" /> Clear Logs
             </Button>
           </div>
@@ -76,8 +108,8 @@ export function AdminNotificationsView() {
                 {logsForDay.map((log: any) => (
                   <div 
                     key={log.id} 
-                    className={`p-5 flex items-start gap-4 hover:bg-muted/10 transition-colors cursor-pointer ${!log.is_read ? 'bg-primary/5' : ''}`}
-                    onClick={() => { if (!log.is_read) markAsRead.mutate(log.id); }}
+                    className={`p-5 flex items-start gap-4 hover:bg-muted/10 transition-colors cursor-pointer ${!isRead(log) ? 'bg-primary/5' : ''}`}
+                    onClick={() => markOne(log)}
                   >
                     <div className={`mt-1 size-2.5 shrink-0 rounded-full ${
                       log.tone === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 
@@ -87,7 +119,7 @@ export function AdminNotificationsView() {
                     <div className="flex-1">
                       <p className="font-semibold text-sm">{log.body}</p>
                       <div className="flex items-center gap-3 mt-1.5">
-                        <span className="text-xs text-muted-foreground font-medium">{log.time.split(",")[1] || log.time}</span>
+                        <span className="text-xs text-muted-foreground font-medium">{log.time}</span>
                         <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground/60 border px-1.5 py-0.5 rounded-sm">
                           {log.tone}
                         </span>

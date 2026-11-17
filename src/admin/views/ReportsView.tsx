@@ -1,8 +1,10 @@
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { getLocalToday } from "@/shared/lib/dateUtils";
-import { useLeaveRequests, usePayrollTrend, useAttendanceHistory, useEmployees } from "@/shared/api/queries";
-import { FileSpreadsheet, Download } from "lucide-react";
+import { useLeaveRequests, usePayrollTrend, useAttendanceHistory, useEmployees, usePayslips } from "@/shared/api/queries";
+import { downloadExcelReport } from "@/shared/lib/excelReport";
+import { FileSpreadsheet, Download, FileDown } from "lucide-react";
+import { toast } from "sonner";
 import {
   BarChart,
   Bar,
@@ -20,7 +22,11 @@ import {
   Area
 } from "recharts";
 
-const STATUS_COLORS = ["#10b981", "#f59e0b", "#ef4444"];
+const STATUS_COLOR_MAP: Record<string, string> = {
+  Approved: "#10b981",
+  Pending: "#f59e0b",
+  Rejected: "#ef4444",
+};
 
 function downloadFile(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -37,6 +43,7 @@ export function ReportsView() {
   const { data: payrollTrend = [] } = usePayrollTrend();
   const { data: attendanceHistory = [] } = useAttendanceHistory();
   const { data: employees = [] } = useEmployees();
+  const { data: payslips = [] } = usePayslips();
 
   // 1. Compute Leave Status Data dynamically
   const approved = leaveRequests.filter((r: any) => r.status === 'Approved').length;
@@ -72,16 +79,17 @@ export function ReportsView() {
     attendanceRateData.push({ month: 'No Data', rate: 0 });
   }
 
-  const workHoursData = attendanceHistory.reduce((acc: any, curr: any) => {
+  const workHoursAccumulator: Record<string, { sum: number; count: number }> = {};
+  attendanceHistory.forEach((curr: any) => {
     const day = new Date(curr.date).toLocaleString('en-US', { weekday: 'short' });
-    const existing = acc.find((a: any) => a.day === day);
-    if (existing) {
-      existing.hours = Math.max(existing.hours, curr.hours);
-    } else {
-      acc.push({ day, hours: curr.hours });
-    }
-    return acc;
-  }, []);
+    if (!workHoursAccumulator[day]) workHoursAccumulator[day] = { sum: 0, count: 0 };
+    workHoursAccumulator[day].sum += Number(curr.hours) || 0;
+    workHoursAccumulator[day].count += 1;
+  });
+  const workHoursData = Object.entries(workHoursAccumulator).map(([day, v]) => ({
+    day,
+    hours: Number((v.sum / v.count).toFixed(2)),
+  }));
 
   const exportCSV = () => {
     const dateStr = getLocalToday();
@@ -149,6 +157,22 @@ export function ReportsView() {
     }
   };
 
+  const exportExcel = () => {
+    try {
+      downloadExcelReport({
+        employees: employees as any[],
+        attendanceHistory: attendanceHistory as any[],
+        leaveRequests: leaveRequests as any[],
+        payslips: payslips as any[],
+      });
+      toast.success("Excel workbook exported", {
+        description: "Multi-tab report with attendance, hours, leave and LOP data.",
+      });
+    } catch (err: any) {
+      toast.error(`Failed to export Excel: ${err.message}`);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       <PageHeader
@@ -159,8 +183,11 @@ export function ReportsView() {
             <Button variant="outline" className="rounded-xl" onClick={exportPDF}>
               <Download className="mr-2 size-4" /> Download PDF
             </Button>
-            <Button className="rounded-xl" onClick={exportCSV}>
+            <Button variant="outline" className="rounded-xl" onClick={exportCSV}>
               <FileSpreadsheet className="mr-2 size-4" /> Export CSV
+            </Button>
+            <Button className="rounded-xl" onClick={exportExcel}>
+              <FileDown className="mr-2 size-4" /> Export Excel
             </Button>
           </div>
         }
@@ -234,10 +261,10 @@ export function ReportsView() {
             <div className="space-y-4">
               {leaveStatusData.length === 0 ? (
                 <div className="text-sm text-muted-foreground pt-4">No leave requests found.</div>
-              ) : leaveStatusData.map((item, index) => (
+              ) : leaveStatusData.map((item) => (
                 <div key={item.name} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
                   <div className="flex items-center gap-2">
-                    <div className="size-3 rounded-full" style={{ backgroundColor: STATUS_COLORS[index] }} />
+                    <div className="size-3 rounded-full" style={{ backgroundColor: STATUS_COLOR_MAP[item.name] }} />
                     <span className="text-sm font-medium">{item.name}</span>
                   </div>
                   <span className="text-sm font-bold">{item.value} reqs</span>
@@ -258,8 +285,8 @@ export function ReportsView() {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {leaveStatusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={STATUS_COLORS[index]} />
+                  {leaveStatusData.map((entry) => (
+                    <Cell key={`cell-${entry.name}`} fill={STATUS_COLOR_MAP[entry.name]} />
                   ))}
                 </Pie>
                 <Tooltip 
@@ -286,11 +313,11 @@ export function ReportsView() {
                   tickLine={false} 
                   fontSize={12} 
                   stroke="var(--muted-foreground)"
-                  tickFormatter={(val) => `$${val / 1000}k`}
+                  tickFormatter={(val) => `₹${val / 1000}k`}
                 />
                 <Tooltip 
                   contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)" }}
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, "Cost"]}
+                  formatter={(value: number) => [`₹${value.toLocaleString('en-IN')}`, "Cost"]}
                 />
                 <Line type="monotone" dataKey="cost" stroke="var(--primary)" strokeWidth={3} dot={{ r: 4, fill: "var(--primary)" }} />
               </LineChart>

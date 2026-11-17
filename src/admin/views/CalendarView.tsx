@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { useNotifications, useHolidays, useLeaveRequests, useEmployees } from "@/shared/api/queries";
 import { useAuthStore } from "@/shared/store/auth";
+import { parseLeaveDate } from "@/shared/lib/dateUtils";
 
 type DayKind = "govt-holiday" | "weekend" | "none";
 
@@ -45,8 +46,9 @@ function buildDays(year: number, month: number, govtHolidaysMap: Record<string, 
     let dayLeaves: any[] = [];
 
     leaves.forEach(l => {
-      const from = new Date(l.from || l.from_date);
-      const to = new Date(l.to || l.to_date);
+      const from = parseLeaveDate(l.from || l.from_date);
+      const to = parseLeaveDate(l.to || l.to_date);
+      if (!from || !to) return;
       if (dt >= from && dt <= to && l.status === "Approved") {
         const emp = employees.find((e: any) => e.id === l.employee_id);
         if (emp) {
@@ -82,7 +84,7 @@ export function CalendarPage() {
   const [selectedDay, setSelectedDay] = useState<{ date: Date; kind: DayKind; note: string; leaves?: any[] } | null>(null);
 
   const { user } = useAuthStore();
-  const { data: notifications = [] } = useNotifications(user?.id);
+  const { data: notifications = [] } = useNotifications(user?.id, user?.role === 'admin');
   const { data: holidays = [] } = useHolidays();
   const { data: leaveRequests = [] } = useLeaveRequests();
   const { data: employees = [] } = useEmployees();

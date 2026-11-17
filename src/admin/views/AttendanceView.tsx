@@ -6,16 +6,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useEmployees, useAttendanceHistory } from "@/shared/api/queries";
-import { useUpdateAttendance } from "@/shared/api/mutations";
 import { supabase } from "@/lib/supabaseClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, subMonths, eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths } from "date-fns";
-import { getLocalToday } from "@/shared/lib/dateUtils";
+import { getLocalToday, isOnLeaveOn } from "@/shared/lib/dateUtils";
 
-const getStatus = (progress: number, status: string) => {
-  if (status === "On Leave") return { text: "On Leave", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" };
+const getStatus = (progress: number, onLeave: boolean) => {
+  if (onLeave) return { text: "On Leave", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" };
   if (progress === 0) return { text: "Absent", color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20" };
   if (progress >= 100) return { text: "Completed Shift", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" };
   return { text: "Working", color: "text-primary", bg: "bg-primary/10", border: "border-primary/20", active: true };
@@ -170,10 +169,10 @@ function fmtSecs(secs: number) {
 export function AttendancePage() {
   const { data: employees = [] } = useEmployees();
   const { data: attendanceHistory = [] } = useAttendanceHistory();
-  const updateAttendanceMutation = useUpdateAttendance();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("live");
   const [confirmAction, setConfirmAction] = useState<{ type: "Start" | "Stop", empId: string, name: string } | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [now, setNow] = useState(new Date());
 
   const SHIFT_HOURS = 8; // Full shift duration in hours
@@ -204,9 +203,12 @@ export function AttendancePage() {
     return map;
   }, [attendanceHistory, today]);
 
+  // "On Leave" is derived from today's approved-leave (absent_dates) entries.
+  const onLeaveToday = (emp: any): boolean => isOnLeaveOn(emp.absentDates, today);
+
   // Real-time progress: for active employees, calculate % of shift elapsed
-  const getTodayProgress = (empId: string, empStatus: string): number => {
-    if (empStatus === "On Leave") return 0;
+  const getTodayProgress = (empId: string, onLeave: boolean): number => {
+    if (onLeave) return 0;
     const rec = todayRecordsMap.get(empId);
     if (!rec) return 0;
     if (rec.status === "Clocked Out") return 100;
@@ -231,13 +233,13 @@ export function AttendancePage() {
     return rec?.status === "Clocked In";
   };
 
-  const activeCount = employees.filter((e: any) => isEmployeeWorking(e.id) && e.status !== "On Leave").length;
-  const leaveCount = employees.filter((e: any) => e.status === "On Leave").length;
+  const activeCount = employees.filter((e: any) => isEmployeeWorking(e.id) && !onLeaveToday(e)).length;
+  const leaveCount = employees.filter((e: any) => onLeaveToday(e)).length;
   const completedCount = employees.filter((e: any) => {
     const rec = todayRecordsMap.get(e.id);
-    return rec?.status === "Clocked Out" && e.status !== "On Leave";
+    return rec?.status === "Clocked Out" && !onLeaveToday(e);
   }).length;
-  const notStartedCount = employees.filter((e: any) => !todayRecordsMap.has(e.id) && e.status !== "On Leave").length;
+  const notStartedCount = employees.filter((e: any) => !todayRecordsMap.has(e.id) && !onLeaveToday(e)).length;
 
   const handleConfirm = async () => {
     if (!confirmAction) return;
@@ -255,23 +257,21 @@ export function AttendancePage() {
           date: today,
           employee_id: confirmAction.empId,
           hours: 0,
-          status: 'Clocked In'
+          status: 'Clocked In',
+          clock_in_time: new Date().toISOString(),
         }]);
         if (error) throw new Error(error.message);
-
-        await updateAttendanceMutation.mutateAsync({ id: confirmAction.empId, newAttendance: 50 });
       } else {
         // Clock Out — calculate hours from clock-in time
         const clockIn = getClockInTime(confirmAction.empId);
         const hoursWorked = clockIn ? (Date.now() - new Date(clockIn).getTime()) / (1000 * 60 * 60) : 0;
 
         const { error } = await supabase.from('attendance_history').update({
-          hours: hoursWorked,
-          status: 'Clocked Out'
+          hours: Number(hoursWorked.toFixed(2)),
+          status: 'Clocked Out',
+          clock_out_time: new Date().toISOString(),
         }).eq('employee_id', confirmAction.empId).eq('date', today);
         if (error) throw new Error(error.message);
-
-        await updateAttendanceMutation.mutateAsync({ id: confirmAction.empId, newAttendance: 100 });
       }
 
       // Manually invalidate to ensure the view refetches
@@ -342,17 +342,18 @@ export function AttendancePage() {
           {/* Employee Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {employees.map((emp: any) => {
-              const progress = getTodayProgress(emp.id, emp.status);
-              const working = isEmployeeWorking(emp.id) && emp.status !== "On Leave";
+              const onLeave = onLeaveToday(emp);
+              const progress = getTodayProgress(emp.id, onLeave);
+              const working = isEmployeeWorking(emp.id) && !onLeave;
               const empClockIn = getClockInTime(emp.id);
-              const status = getStatus(progress, emp.status);
+              const status = getStatus(progress, onLeave);
               
               let ringColor = "var(--primary)";
-              if (emp.status === "On Leave") ringColor = "#f59e0b"; // amber-500
+              if (onLeave) ringColor = "#f59e0b"; // amber-500
               else if (progress === 0) ringColor = "#ef4444"; // red-500
               else if (progress >= 100) ringColor = "#10b981"; // emerald-500
 
-              const canStart = progress === 0 && emp.status !== "On Leave";
+              const canStart = progress === 0 && !onLeave;
               const canStop = working;
 
               return (
@@ -437,9 +438,9 @@ export function AttendancePage() {
             <Button 
               className={cn("rounded-xl text-white", confirmAction?.type === "Stop" ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700")}
               onClick={handleConfirm}
-              disabled={updateAttendanceMutation.isPending}
+              disabled={isConfirming}
             >
-              {updateAttendanceMutation.isPending ? "Confirming..." : `Confirm ${confirmAction?.type}`}
+              {isConfirming ? "Confirming..." : `Confirm ${confirmAction?.type}`}
             </Button>
           </DialogFooter>
         </DialogContent>

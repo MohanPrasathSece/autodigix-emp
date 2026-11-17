@@ -46,9 +46,17 @@ export function LandingView() {
         .eq('email', email.toLowerCase().trim())
         .maybeSingle();
 
+      if (error) {
+        serverLog('Login Failed', { email, reason: 'query_error', message: error.message }, 'error');
+        setLoginError("Unable to sign in right now. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Generic message for both unknown email and wrong password (avoids account enumeration).
       if (!data) {
-        serverLog('Login Failed', { email, error: error?.message || 'Email not found' }, 'error');
-        setLoginError("Account does not exist.");
+        serverLog('Login Failed', { email, reason: 'unknown_email' }, 'error');
+        setLoginError("Invalid email or password.");
         setIsLoading(false);
         return;
       }
@@ -56,8 +64,9 @@ export function LandingView() {
       const hashedPassword = await hashPassword(password);
 
       if (data.password !== hashedPassword && data.password !== password) {
-        serverLog('Login Failed', { email, attemptedPassword: password }, 'error');
-        setLoginError(`Incorrect password!`);
+        // Never log the attempted password.
+        serverLog('Login Failed', { email, reason: 'bad_password' }, 'error');
+        setLoginError("Invalid email or password.");
         setIsLoading(false);
         return;
       }

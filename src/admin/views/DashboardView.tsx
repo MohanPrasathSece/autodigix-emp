@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getLocalToday } from "@/shared/lib/dateUtils";
+import { getLocalToday, formatLeaveDate, isOnLeaveOn } from "@/shared/lib/dateUtils";
 import { useLeaveRequests, useEmployees, usePayslips, useAttendanceHistory } from "@/shared/api/queries";
 import { useUpdateLeaveRequestStatus, useAddNotification, useRunPayroll, useAddHoliday } from "@/shared/api/mutations";
 import { useNavigate } from "react-router-dom";
@@ -33,11 +33,13 @@ export function AdminDashboardView() {
   const pendingLeaves = leaveRequests.filter((r: any) => r.status === "Pending").slice(0, 3);
   
   const totalEmployees = employees.length;
-  const onLeaveEmployees = employees.filter((e: any) => e.status === "On Leave").length;
-  const expectedToWork = totalEmployees - onLeaveEmployees;
 
   // Check if an employee is currently clocked in today
   const todayStrDashboard = getLocalToday();
+  // "On Leave" is derived from approved leaves (absent_dates) for today.
+  const onLeaveEmployees = employees.filter((e: any) => isOnLeaveOn(e.absentDates, todayStrDashboard)).length;
+  const expectedToWork = totalEmployees - onLeaveEmployees;
+
   const isWorking = (empId: string) => {
     const todayLogs = (attendanceHistory as any[]).filter(h => h.employee_id === empId && h.date === todayStrDashboard).sort((a, b) => b.id - a.id);
     return todayLogs.length > 0 && todayLogs[0].status === 'Clocked In';
@@ -96,7 +98,8 @@ export function AdminDashboardView() {
           title: "Leave Approved",
           body: `You approved a leave request for ${name}.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          tone: "success"
+          tone: "success",
+          target_id: "admin"
         });
         confetti({
           particleCount: 100,
@@ -115,7 +118,8 @@ export function AdminDashboardView() {
           title: "Leave Declined",
           body: `You declined a leave request for ${name}.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          tone: "warning"
+          tone: "warning",
+          target_id: "admin"
         });
       }
     });
@@ -129,7 +133,8 @@ export function AdminDashboardView() {
           title: "Payroll Processed",
           body: `Payroll for ${period} has been generated successfully.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          tone: "info"
+          tone: "info",
+          target_id: "admin"
         });
         confetti({
           particleCount: 150,
@@ -165,7 +170,7 @@ export function AdminDashboardView() {
             <Button variant="outline" className="rounded-xl" onClick={() => navigate('/admin/reports')}>
               <FileSpreadsheet className="mr-2 size-4" /> Export Report
             </Button>
-            <Button className="rounded-xl" onClick={() => navigate('/admin/employees')}>
+            <Button className="rounded-xl" onClick={() => navigate('/admin/employees/add')}>
               <UserPlus className="mr-2 size-4" /> Add Employee
             </Button>
           </div>
@@ -177,7 +182,7 @@ export function AdminDashboardView() {
         <StatCard label="Total Employees" value={totalEmployees.toString()} delta="" trend="up" icon={Users} hint="Active headcount" />
         <StatCard label="Today's Attendance" value={`${attendanceRate}%`} delta="" trend="up" icon={UserCheck} hint={`${totalEmployees - onLeaveEmployees} / ${totalEmployees} Expected`} />
         <StatCard label="Pending Leaves" value={leaveRequests.filter((r: any) => r.status === "Pending").length.toString()} delta="Requires review" icon={PlaneTakeoff} hint="Urgent" />
-        <StatCard label="Monthly Payroll" value={`$${(monthlyPayroll / 1000).toFixed(1)}k`} delta="Processed" trend="up" icon={Wallet} hint={latestPeriod} />
+        <StatCard label="Monthly Payroll" value={`₹${(monthlyPayroll / 1000).toFixed(1)}k`} delta="Processed" trend="up" icon={Wallet} hint={latestPeriod} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -240,7 +245,7 @@ export function AdminDashboardView() {
                         <p className="text-sm font-medium">{leave.name}</p>
                         <p className="text-xs text-muted-foreground">{leave.type} · {leave.days} Day(s)</p>
                       </div>
-                      <span className="text-[10px] text-muted-foreground">{leave.from} - {leave.to}</span>
+                      <span className="text-[10px] text-muted-foreground">{formatLeaveDate(leave.from)} - {formatLeaveDate(leave.to)}</span>
                     </div>
                     <div className="flex gap-2 mt-1">
                       <Button 

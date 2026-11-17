@@ -37,14 +37,17 @@ const primary = [
 ];
 
 const secondary = [
+  { title: "Payroll", url: "/admin/payroll", icon: Wallet },
   { title: "Calendar", url: "/admin/calendar", icon: CalendarDays },
   { title: "Reports", url: "/admin/reports", icon: BarChart3 },
+  { title: "Holidays", url: "/admin/holidays", icon: Sun },
   { title: "Messages", url: "/admin/messages", icon: MessageSquare },
 ];
 
 const account = [
   { title: "Notifications", url: "/admin/notifications", icon: Bell },
   { title: "Profile", url: "/admin/profile", icon: UserCircle },
+  { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
 
 import { useLeaveRequests } from "@/shared/api/queries";

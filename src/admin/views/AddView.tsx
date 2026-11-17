@@ -20,9 +20,11 @@ export function AddEmployeeView() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    payslip_email: "",
     department: "",
     role: "",
     password: "AutoDigix2026!",
+    access_level: "employee",
     monthly_base_salary: "85000",
     monthly_allowance: "0",
     monthly_benefits_deduction: "0"
@@ -32,6 +34,12 @@ export function AddEmployeeView() {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.department || !formData.role || !formData.password) {
       toast.error("Please fill in all required fields.");
+      return;
+    }
+
+    const salaryValue = Number(formData.monthly_base_salary);
+    if (formData.monthly_base_salary.trim() === "" || isNaN(salaryValue) || salaryValue < 0) {
+      toast.error("Please enter a valid monthly base salary.");
       return;
     }
 
@@ -56,6 +64,7 @@ export function AddEmployeeView() {
         name: formData.name,
         email: formData.email,
         password: hashedPassword,
+        tempPassword: formData.password,
         role: formData.role,
         department: formData.department,
         status: "Active",
@@ -64,7 +73,9 @@ export function AddEmployeeView() {
         initials: initials,
         base_salary: annualBaseSalary,
         monthly_allowance: Number(formData.monthly_allowance || 0),
-        monthly_benefits_deduction: Number(formData.monthly_benefits_deduction || 0)
+        monthly_benefits_deduction: Number(formData.monthly_benefits_deduction || 0),
+        access_level: formData.access_level,
+        payslip_email: formData.payslip_email || formData.email
       },
       {
         onSuccess: () => {
@@ -74,9 +85,11 @@ export function AddEmployeeView() {
           setFormData({
             name: "",
             email: "",
+            payslip_email: "",
             department: "",
             role: "",
             password: "AutoDigix2026!",
+            access_level: "employee",
             monthly_base_salary: "85000",
             monthly_allowance: "0",
             monthly_benefits_deduction: "0"
@@ -257,6 +270,18 @@ export function AddEmployeeView() {
               />
             </div>
             <div className="space-y-2">
+              <Label>Payslip Email Address</Label>
+              <Input 
+                type="email" 
+                placeholder="Defaults to work email" 
+                value={formData.payslip_email}
+                onChange={e => setFormData({...formData, payslip_email: e.target.value})}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Monthly payslips are emailed here.
+              </p>
+            </div>
+            <div className="space-y-2">
               <Label>Temporary Password <span className="text-red-500">*</span></Label>
               <Input 
                 type="text" 
@@ -270,7 +295,7 @@ export function AddEmployeeView() {
             </div>
             <div className="space-y-2">
               <Label>Portal Access Level <span className="text-red-500">*</span></Label>
-              <Select defaultValue="employee">
+              <Select value={formData.access_level} onValueChange={v => setFormData({...formData, access_level: v})}>
                 <SelectTrigger className="rounded-xl">
                   <SelectValue placeholder="Select access level" />
                 </SelectTrigger>

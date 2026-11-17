@@ -2,9 +2,21 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { serverLog } from '../lib/logger';
-import { getLocalToday } from '../lib/dateUtils';
+import { getLocalToday, getMonthKey, parseLeaveDate, toLocalISO } from '../lib/dateUtils';
+import { syncAttendanceToSheet, formatClockTime } from '../lib/googleSheets';
+import { computeLeaveLopDays, sumLopDaysForMonth, type LeaveLike } from '../lib/lopUtils';
 import confetti from 'canvas-confetti';
 import { generatePayslipPDFBase64 } from '../lib/pdfGenerator';
+
+// Leave requests are routed to this address for approval (Vini).
+const ADMIN_NOTIFICATION_EMAIL =
+  (import.meta.env.VITE_ADMIN_NOTIFICATION_EMAIL as string) || 'vini@autodigix.in';
+
+/** Generate a globally unique leave request id (works for TEXT and UUID columns). */
+const generateId = (): string =>
+  (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+    ? crypto.randomUUID()
+    : `LV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
 const sendEmail = async (
   to: string,
@@ -13,7 +25,7 @@ const sendEmail = async (
   html?: string,
   pdfBase64?: string,
   filename?: string
-) => {
+): Promise<boolean> => {
   try {
     const apiUrl = import.meta.env.VITE_API_URL || '';
     const res = await fetch(`${apiUrl}/api/send-email`, {
@@ -31,9 +43,12 @@ const sendEmail = async (
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       console.warn('Failed to dispatch email:', err);
+      return false;
     }
+    return true;
   } catch (error) {
     console.error('Failed to dispatch email:', error);
+    return false;
   }
 };
 
@@ -53,7 +68,25 @@ export const useUpdateLeaveRequestStatus = () => {
     },
     onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ['leaveRequests'] });
-      
+
+      const leaveReq = result.data && result.data[0];
+      if (!leaveReq) return;
+
+      // Resolve the employee's email so the decision notification reaches them.
+      let employeeEmail = result.email;
+      let employeeName = result.name || leaveReq.name;
+      if (!employeeEmail && leaveReq.employee_id) {
+        const { data: emp } = await supabase
+          .from('employees')
+          .select('email, payslip_email, name')
+          .eq('id', leaveReq.employee_id)
+          .maybeSingle();
+        if (emp) {
+          employeeEmail = emp.payslip_email || emp.email;
+          employeeName = employeeName || emp.name;
+        }
+      }
+
       if (result.status === 'Approved') {
         confetti({
           particleCount: 100,
@@ -62,44 +95,99 @@ export const useUpdateLeaveRequestStatus = () => {
         });
 
         // Insert absent dates for the approved leave
-        if (result.data && result.data[0]) {
-          const leaveReq = result.data[0];
-          const from = new Date(leaveReq.from_date + " " + new Date().getFullYear());
-          const to = new Date(leaveReq.to_date + " " + new Date().getFullYear());
-          
-          if (!isNaN(from.getTime()) && !isNaN(to.getTime())) {
-             let currentDate = new Date(from);
-             const datesToInsert = [];
-             while (currentDate <= to) {
-                const day = currentDate.getDay();
-                if (day !== 0 && day !== 6) { // Skip weekends
-                   datesToInsert.push({
-                      employee_id: leaveReq.employee_id,
-                      date: `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`,
-                      subject: leaveReq.subject ? `${leaveReq.type} - ${leaveReq.subject}` : leaveReq.type
-                   });
-                }
-                currentDate.setDate(currentDate.getDate() + 1);
-             }
-             if (datesToInsert.length > 0) {
-                await supabase.from('absent_dates').insert(datesToInsert);
-                queryClient.invalidateQueries({ queryKey: ['employees'] });
-             }
+        const from = parseLeaveDate(leaveReq.from_date);
+        const to = parseLeaveDate(leaveReq.to_date);
+
+        if (from && to) {
+          const currentDate = new Date(from);
+          const datesToInsert: { employee_id: string; date: string; subject: string }[] = [];
+          while (currentDate <= to) {
+            const day = currentDate.getDay();
+            if (day !== 0 && day !== 6) { // Skip weekends
+              datesToInsert.push({
+                employee_id: leaveReq.employee_id,
+                date: toLocalISO(currentDate),
+                subject: leaveReq.subject ? `${leaveReq.type} - ${leaveReq.subject}` : leaveReq.type,
+              });
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+          if (datesToInsert.length > 0) {
+            await supabase.from('absent_dates').insert(datesToInsert);
+            queryClient.invalidateQueries({ queryKey: ['employees'] });
           }
         }
+
+        // Compute and persist the Loss of Pay days for this leave.
+        try {
+          const { data: allLeaves } = await supabase
+            .from('leave_requests')
+            .select('id, employee_id, type, from_date, to_date, days, status');
+          const lopDays = computeLeaveLopDays((allLeaves || []) as LeaveLike[], leaveReq.employee_id, {
+            id: leaveReq.id,
+            employee_id: leaveReq.employee_id,
+            type: leaveReq.type,
+            days: leaveReq.days,
+            status: 'Approved',
+            from_date: leaveReq.from_date,
+            to_date: leaveReq.to_date,
+          });
+          await supabase.from('leave_requests').update({ lop_days: lopDays }).eq('id', leaveReq.id);
+        } catch (lopErr) {
+          console.warn('LOP calculation failed:', lopErr);
+        }
+      } else {
+        // A non-approved leave must not leave LOP or absent-date side effects behind.
+        const from = parseLeaveDate(leaveReq.from_date);
+        const to = parseLeaveDate(leaveReq.to_date);
+        if (from && to) {
+          const dates: string[] = [];
+          const cursor = new Date(from);
+          while (cursor <= to) {
+            const day = cursor.getDay();
+            if (day !== 0 && day !== 6) dates.push(toLocalISO(cursor));
+            cursor.setDate(cursor.getDate() + 1);
+          }
+          if (dates.length > 0) {
+            await supabase.from('absent_dates')
+              .delete()
+              .eq('employee_id', leaveReq.employee_id)
+              .in('date', dates);
+            queryClient.invalidateQueries({ queryKey: ['employees'] });
+          }
+        }
+        await supabase.from('leave_requests').update({ lop_days: 0 }).eq('id', leaveReq.id);
       }
 
-      serverLog('Leave Request Update', { id: result.id, newStatus: result.status, targetEmployee: result.name || 'Unknown' }, 'success');
+      serverLog('Leave Request Update', { id: result.id, newStatus: result.status, targetEmployee: employeeName || 'Unknown' }, 'success');
 
-      if (result.email && result.name) {
-        sendEmail(
-          result.email,
+      // In-app notification for the employee whose request was decided.
+      if (leaveReq.employee_id) {
+        await supabase.from('notifications').insert([{
+          title: `Leave ${result.status}`,
+          body: `Your ${leaveReq.type} request (${leaveReq.from_date} to ${leaveReq.to_date}) has been ${result.status.toLowerCase()}.`,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          tone: result.status === 'Approved' ? 'success' : 'warning',
+          target_id: leaveReq.employee_id,
+        }]);
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      }
+
+      if (employeeEmail) {
+        const sent = await sendEmail(
+          employeeEmail,
           `Leave Request ${result.status}`,
-          `Hi ${result.name},\n\nYour leave request has been ${result.status.toLowerCase()}.`
+          `Hi ${employeeName},\n\nYour ${leaveReq.type} request (${leaveReq.from_date} to ${leaveReq.to_date}) has been ${result.status.toLowerCase()}.`
         );
+        if (!sent) {
+          toast.warning(`Could not email ${employeeName}`, {
+            description: "The leave status was saved, but the notification email failed to send.",
+          });
+        }
       } else {
-        // Fallback for demo
-        sendEmail("admin@company.com", `Leave Request ${result.status}`, `A leave request was ${result.status.toLowerCase()}.`);
+        toast.warning("Employee email not found", {
+          description: "The leave status was saved, but no email address was available to notify the employee.",
+        });
       }
     },
     onError: (error) => {
@@ -131,10 +219,14 @@ export const useAddEmployee = () => {
       emergency_contact_name?: string;
       emergency_contact_phone?: string;
       access_level?: string;
+      payslip_email?: string;
+      // Plaintext password used only for the welcome email; never persisted.
+      tempPassword?: string;
     }) => {
       const payload = { ...newEmployee };
       if (!payload.emergency_contact_name) delete payload.emergency_contact_name;
       if (!payload.emergency_contact_phone) delete payload.emergency_contact_phone;
+      delete payload.tempPassword;
 
       const { data, error } = await supabase
         .from('employees')
@@ -144,16 +236,26 @@ export const useAddEmployee = () => {
       if (error) throw new Error(error.message);
       return data;
     },
-    onSuccess: (data, variables) => {
+    onSuccess: async (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       
       serverLog('Employee Onboarded', { id: variables.id, name: variables.name, department: variables.department, role: variables.role }, 'success');
 
-      sendEmail(
+      const intro = `Hi ${variables.name},\n\nWelcome to the team! Your portal account has been created.`;
+      const passwordLine = variables.tempPassword
+        ? `\nYour temporary password is: ${variables.tempPassword}\n\nPlease log in and change it immediately.`
+        : `\nPlease log in using the credentials shared with you.`;
+
+      const sent = await sendEmail(
         variables.email,
         "Welcome to Autodigix",
-        `Hi ${variables.name},\n\nWelcome to the team! Your portal account has been created.\nYour temporary password is: ${variables.password}\n\nPlease log in and change it immediately.`
+        `${intro}${passwordLine}`
       );
+      if (!sent) {
+        toast.warning(`Could not send welcome email to ${variables.name}`, {
+          description: "The employee was created, but the welcome email failed. Share the credentials manually.",
+        });
+      }
     },
     onError: (error, variables) => {
       toast.error(`Failed to add employee: ${error.message}`);
@@ -179,11 +281,14 @@ export const useApplyLeave = () => {
       subject: string;
       description: string;
     }) => {
-      const from = new Date(leaveRequest.from_date);
-      const to = new Date(leaveRequest.to_date);
+      const from = parseLeaveDate(leaveRequest.from_date);
+      const to = parseLeaveDate(leaveRequest.to_date);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
+      if (!from || !to) {
+        throw new Error("Please select a valid leave date range.");
+      }
       if (from < today) {
         throw new Error("Cannot apply for leave in the past.");
       }
@@ -193,7 +298,7 @@ export const useApplyLeave = () => {
 
       const { data, error } = await supabase
         .from('leave_requests')
-        .insert([leaveRequest])
+        .insert([{ ...leaveRequest, id: generateId() }])
         .select();
 
       if (error) throw new Error(error.message);
@@ -204,7 +309,7 @@ export const useApplyLeave = () => {
       serverLog('Leave Request Applied', { employee_id: variables.employee_id, type: variables.type, days: variables.days }, 'success');
       
       sendEmail(
-        "Info@autodigix.in",
+        ADMIN_NOTIFICATION_EMAIL,
         `New Leave Application: ${variables.name} (${variables.type})`,
         `Hi Admin,\n\n${variables.name} has applied for ${variables.days} day(s) of ${variables.type} (${variables.from_date} to ${variables.to_date}).\n\nSubject: ${variables.subject}\nReason: ${variables.description}\n\nPlease review and approve/reject this in the Admin Portal.`,
         `
@@ -261,75 +366,123 @@ export const useDeleteLeaveRequest = () => {
   });
 };
 
-export const useUpdateAttendance = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ id, newAttendance, status }: { id: string; newAttendance: number; status?: string }) => {
-      
-      const updatePayload: any = { attendance: newAttendance };
-      if (status) {
-        updatePayload.status = status;
-      }
-      
-      const { data, error } = await supabase
-        .from('employees')
-        .update(updatePayload)
-        .eq('id', id)
-        .select();
-
-      if (error) throw new Error(error.message);
-      return { data, id, newAttendance, status };
-    },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      serverLog('Employee Attendance Updated', { employee_id: result.id, newAttendance: result.newAttendance, newStatus: result.status }, 'success');
-    },
-    onError: (error, variables) => {
-      toast.error(`Failed to update attendance: ${error.message}`);
-      console.error(error);
-      serverLog('Employee Attendance Update Failed', { employee_id: variables.id, error: error.message }, 'error');
-    }
-  });
-};
-
 export const useLogAttendance = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ employee_id, action, hours = 0, timestamp }: { employee_id: string; action: 'Clock In' | 'Clock Out'; hours?: number; timestamp?: string }) => {
+    mutationFn: async ({ employee_id, employee_name, action, hours = 0, timestamp }: { employee_id: string; employee_name?: string; action: 'Clock In' | 'Clock Out'; hours?: number; timestamp?: string }) => {
       const today = getLocalToday();
-      
-      if (action === 'Clock In') {
-        // Check if already clocked in today
-        const { data: existing } = await supabase
-          .from('attendance_history')
-          .select('id')
-          .eq('employee_id', employee_id)
-          .eq('date', today)
-          .maybeSingle();
+      const eventTime = timestamp || new Date().toISOString();
+      const eventTimeLabel = formatClockTime(eventTime);
 
-        if (existing) {
-           throw new Error("Already clocked in today.");
+      let employeeName = employee_name;
+      if (!employeeName) {
+        const { data: emp } = await supabase
+          .from('employees')
+          .select('name')
+          .eq('id', employee_id)
+          .maybeSingle();
+        employeeName = emp?.name || `Employee #${employee_id}`;
+      }
+
+      // One attendance row is kept per employee per day; multiple
+      // clock-in/out sessions accumulate into that row's `hours`.
+      const { data: existingRows } = await supabase
+        .from('attendance_history')
+        .select('id, status, hours')
+        .eq('employee_id', employee_id)
+        .eq('date', today)
+        .order('id', { ascending: false })
+        .limit(1);
+      const existing = existingRows && existingRows[0];
+
+      if (action === 'Clock In') {
+        if (existing && existing.status === 'Clocked In') {
+          throw new Error("Already clocked in.");
         }
 
-        const { error } = await supabase.from('attendance_history').insert([{
+        if (existing) {
+          // Resume a session that was stopped earlier today.
+          const { error } = await supabase
+            .from('attendance_history')
+            .update({ status: 'Clocked In', clock_in_time: eventTime, clock_out_time: null })
+            .eq('id', existing.id);
+          if (error) throw new Error(error.message);
+        } else {
+          const { error } = await supabase.from('attendance_history').insert([{
+            date: today,
+            employee_id,
+            hours: 0,
+            status: 'Clocked In',
+            clock_in_time: eventTime,
+          }]);
+          if (error) throw new Error(error.message);
+        }
+
+        // Sync the punch-in to Google Sheets (no-op if not configured).
+        syncAttendanceToSheet({
+          employeeName: employeeName!,
+          employeeId: employee_id,
           date: today,
-          employee_id,
-          hours: 0,
-          status: 'Clocked In'
+          loginTime: eventTimeLabel,
+          logoutTime: null,
+          totalHours: Number(existing?.hours) || null,
+          status: 'Clocked In',
+        });
+
+        // Personal attendance notification (visible to the employee only).
+        await supabase.from('notifications').insert([{
+          title: 'Attendance — Clock In',
+          body: `${employeeName} logged in at ${eventTimeLabel} on ${today}.`,
+          time: eventTimeLabel || today,
+          tone: 'success',
+          target_id: employee_id,
         }]);
-        if (error) throw new Error(error.message);
       } else {
-        const { error } = await supabase.from('attendance_history').update({
-          hours,
-          status: 'Clocked Out'
-        }).eq('employee_id', employee_id).eq('date', today);
-        if (error) throw new Error(error.message);
+        // Accumulate this session's hours onto any already recorded today.
+        const totalHours = Number(((Number(existing?.hours) || 0) + hours).toFixed(2));
+
+        if (existing) {
+          const { error } = await supabase
+            .from('attendance_history')
+            .update({ hours: totalHours, status: 'Clocked Out', clock_out_time: eventTime })
+            .eq('id', existing.id);
+          if (error) throw new Error(error.message);
+        } else {
+          const { error } = await supabase.from('attendance_history').insert([{
+            date: today,
+            employee_id,
+            hours: totalHours,
+            status: 'Clocked Out',
+            clock_out_time: eventTime,
+          }]);
+          if (error) throw new Error(error.message);
+        }
+
+        // Sync the punch-out (with cumulative total hours) to Google Sheets.
+        syncAttendanceToSheet({
+          employeeName: employeeName!,
+          employeeId: employee_id,
+          date: today,
+          loginTime: null,
+          logoutTime: eventTimeLabel,
+          totalHours,
+          status: 'Clocked Out',
+        });
+
+        // Personal attendance notification (visible to the employee only).
+        await supabase.from('notifications').insert([{
+          title: 'Attendance — Clock Out',
+          body: `${employeeName} logged out at ${eventTimeLabel} on ${today} (${totalHours} hrs total).`,
+          time: eventTimeLabel || today,
+          tone: 'info',
+          target_id: employee_id,
+        }]);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
       queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
     onError: (error) => {
       toast.error(error.message);
@@ -403,7 +556,7 @@ export const useRunPayroll = () => {
       // 1. Fetch active employees (including base_salary, monthly_allowance, monthly_benefits_deduction)
       const { data: employees, error: fetchError } = await supabase
         .from('employees')
-        .select('id, name, email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction')
+        .select('id, name, email, payslip_email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction')
         .neq('status', 'Terminated');
 
       if (fetchError) throw new Error(fetchError.message);
@@ -417,20 +570,38 @@ export const useRunPayroll = () => {
         .from('absent_dates')
         .select('employee_id, subject');
 
+      // Fetch approved leave requests for Loss of Pay (LOP) calculation.
+      const { data: leaveRows } = await supabase
+        .from('leave_requests')
+        .select('id, employee_id, type, from_date, to_date, days, status, lop_days')
+        .eq('status', 'Approved');
+
+      // "Nov 2026" -> "2026-11"
+      const periodDate = new Date(`1 ${period}`);
+      const periodMonthKey = isNaN(periodDate.getTime())
+        ? getMonthKey(getLocalToday())
+        : `${periodDate.getFullYear()}-${String(periodDate.getMonth() + 1).padStart(2, '0')}`;
+
       // 3. Map to payslips
       const payslips = employees.map(emp => {
-        const salary = emp.base_salary || 60000;
+        const salary = emp.base_salary ?? 60000;
         const base_amount = Math.round(salary / 12);
         const allowances_amount = emp.monthly_allowance || 0;
-        
-        let unpaid_leave_amount = 0;
+
         const unpaidDays = (absentDates || []).filter(a => a.employee_id === emp.id && a.subject.toLowerCase().includes('unpaid')).reduce((acc, a) => {
            return acc + (a.subject.toLowerCase().includes('half day') ? 0.5 : 1);
         }, 0);
-        
-        if (unpaidDays > 0) {
+
+        // Loss of Pay days from approved leave requests in this period.
+        const lopDays = sumLopDaysForMonth((leaveRows || []) as LeaveLike[], emp.id, periodMonthKey);
+
+        // Deduct unpaid + LOP days, de-duplicated so unpaid leave is not counted twice.
+        const deductionDays = Math.max(unpaidDays, lopDays);
+
+        let unpaid_leave_amount = 0;
+        if (deductionDays > 0) {
            const dailyRate = base_amount / 22;
-           unpaid_leave_amount = Math.round(unpaidDays * dailyRate);
+           unpaid_leave_amount = Math.round(deductionDays * dailyRate);
         }
 
         const gross = base_amount + allowances_amount - unpaid_leave_amount;
@@ -446,6 +617,7 @@ export const useRunPayroll = () => {
           base_amount: base_amount,
           allowances_amount: allowances_amount,
           unpaid_leave_amount: unpaid_leave_amount,
+          lop_days: lopDays,
           tax_amount: tax_amount,
           benefits_amount: benefits_amount,
           status: 'Paid'
@@ -461,6 +633,8 @@ export const useRunPayroll = () => {
       if (error) throw new Error(error.message);
       
       // 4. Generate PDF Payslips & Send emails
+      let emailFailures = 0;
+      let emailSkipped = 0;
       for (const emp of employees) {
         const p = payslips.find(ps => ps.employee_id === emp.id);
         if (p) {
@@ -513,21 +687,44 @@ export const useRunPayroll = () => {
               </div>
             `;
 
-            await sendEmail(
-              emp.email,
-              `Payslip Statement - ${period}`,
-              `Hi ${emp.name},\n\nYour payroll for ${period} has been processed.\nGross: ₹${p.gross}\nNet: ₹${p.net}\n\nPlease find your attached PDF payslip.`,
-              emailHtml,
-              pdfBase64,
-              `Payslip_${period.replace(/\s+/g, '_')}_${emp.name.replace(/\s+/g, '_')}.pdf`
-            );
+            const recipient = emp.payslip_email || emp.email;
+            const payslipRow = (data || []).find((row: any) => row.employee_id === emp.id);
+
+            if (!recipient) {
+              emailSkipped++;
+              if (payslipRow) {
+                await supabase.from('payslips')
+                  .update({ email_status: 'Skipped - no email address' })
+                  .eq('id', payslipRow.id);
+              }
+            } else {
+              const sent = await sendEmail(
+                recipient,
+                `Payslip Statement - ${period}`,
+                `Hi ${emp.name},\n\nYour payroll for ${period} has been processed.\nGross: ₹${p.gross}\nNet: ₹${p.net}\n\nPlease find your attached PDF payslip.`,
+                emailHtml,
+                pdfBase64,
+                `Payslip_${period.replace(/\s+/g, '_')}_${emp.name.replace(/\s+/g, '_')}.pdf`
+              );
+
+              // Track payslip delivery only when the send actually succeeded.
+              if (!sent) emailFailures++;
+              if (payslipRow) {
+                await supabase.from('payslips')
+                  .update(sent
+                    ? { email_status: `Sent to ${recipient}`, email_sent_at: new Date().toISOString() }
+                    : { email_status: `Failed to send to ${recipient}` })
+                  .eq('id', payslipRow.id);
+              }
+            }
           } catch (pdfErr) {
+            emailFailures++;
             console.error(`Failed to generate/send PDF payslip for ${emp.name}:`, pdfErr);
           }
         }
       }
 
-      return { data, period, count: employees.length };
+      return { data, period, count: employees.length, emailFailures, emailSkipped };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['payslips'] });
@@ -540,8 +737,15 @@ export const useRunPayroll = () => {
         colors: ['#22c55e', '#10b981', '#3b82f6', '#fbbf24']
       });
 
-      toast.success("Payroll Processed", { description: "Payslips generated and emails sent." });
-      serverLog('Payroll Run Completed', { period: result.period, employeesProcessed: result.count }, 'success');
+      const problems = result.emailFailures + result.emailSkipped;
+      if (problems > 0) {
+        toast.warning("Payroll processed with issues", {
+          description: `${result.count} payslips generated. ${result.emailFailures} email(s) failed, ${result.emailSkipped} skipped (no address).`,
+        });
+      } else {
+        toast.success("Payroll Processed", { description: `${result.count} payslips generated and emailed.` });
+      }
+      serverLog('Payroll Run Completed', { period: result.period, employeesProcessed: result.count, emailFailures: result.emailFailures, emailSkipped: result.emailSkipped }, 'success');
     },
     onError: (error) => {
       toast.error(`Failed to run payroll: ${error.message}`);
@@ -572,6 +776,8 @@ export const useUpdateEmployee = () => {
       monthly_benefits_deduction: number;
       emergency_contact_name: string;
       emergency_contact_phone: string;
+      access_level: string;
+      payslip_email: string;
     }>) => {
       const { id, ...updates } = employee;
       if (!id) throw new Error("Employee ID is required");
@@ -639,16 +845,34 @@ export const useMarkNotificationRead = () => {
   });
 };
 
+export const useClearNotifications = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      // Only clear shared logs (announcements + admin activity). Personal
+      // employee notifications (target_id = employee id) are preserved.
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .in('target_id', ['all', 'admin']);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+};
+
 export const useDeleteEmployee = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('employees')
         .delete()
         .eq('id', id);
-
       if (error) throw new Error(error.message);
       return id;
     },

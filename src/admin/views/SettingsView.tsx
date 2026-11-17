@@ -16,9 +16,7 @@ import { toast } from "sonner";
 const sections = [
   { icon: User, id: "account", title: "Account", desc: "Personal details and login" },
   { icon: Bell, id: "notifications", title: "Notifications", desc: "How we reach you" },
-  { icon: Shield, id: "security", title: "Security", desc: "Password and sessions" },
   { icon: Palette, id: "appearance", title: "Appearance", desc: "Theme and density" },
-  { icon: Globe, id: "language", title: "Language & region", desc: "Locale and time zone" },
 ];
 
 export function SettingsPage() {
@@ -26,7 +24,7 @@ export function SettingsPage() {
   const { data: employees = [] } = useEmployees();
   const updateEmployee = useUpdateEmployee();
   
-  const employeeData = employees.find((e: any) => e.id === user?.id) || employees[0];
+  const employeeData = employees.find((e: any) => e.id === user?.id);
   
   const [profile, setProfile] = useState({
     firstName: "",

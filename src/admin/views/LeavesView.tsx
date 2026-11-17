@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@radix-ui/react-hover-card";
 import { useLeaveRequests, useEmployees } from "@/shared/api/queries";
 import { useUpdateLeaveRequestStatus } from "@/shared/api/mutations";
+import { formatLeaveDate } from "@/shared/lib/dateUtils";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import confetti from "canvas-confetti";
@@ -133,7 +134,7 @@ export function ApprovalsPage() {
                   <span className="text-xs text-muted-foreground">requested</span>
                   <span className="text-sm font-medium">{r.type}</span>
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">{r.from} - {r.to} · {r.days} day{r.days > 1 ? "s" : ""} · #{r.id}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{formatLeaveDate(r.from)} - {formatLeaveDate(r.to)} · {r.days} day{r.days > 1 ? "s" : ""}{r.lop_days > 0 ? ` · LOP ${r.lop_days}d` : ""}</div>
               </div>
               
               <div className="flex items-center gap-3">
@@ -190,7 +191,7 @@ export function ApprovalsPage() {
                   <div>
                     <h4 className="text-sm font-semibold">Date & Duration</h4>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {selectedRequest.from} to {selectedRequest.to} ({selectedRequest.days} day{selectedRequest.days > 1 ? "s" : ""})
+                      {formatLeaveDate(selectedRequest.from)} to {formatLeaveDate(selectedRequest.to)} ({selectedRequest.days} day{selectedRequest.days > 1 ? "s" : ""})
                     </p>
                   </div>
                 </div>

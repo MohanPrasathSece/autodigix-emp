@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useEmployees } from "@/shared/api/queries";
 import { useAddEmployee, useDeleteEmployee } from "@/shared/api/mutations";
+import { hashPassword } from "@/shared/lib/hash";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -29,6 +30,8 @@ export function EmployeesPage() {
     name: "",
     email: "",
     role: "",
+    department: "",
+    monthly_base_salary: "",
     password: "AutoDigix2026!",
     emergency_contact_name: "",
     emergency_contact_phone: "",
@@ -41,9 +44,15 @@ export function EmployeesPage() {
       e.role.toLowerCase().includes(q.toLowerCase()),
   );
 
-  const handleCreateAccount = () => {
+  const handleCreateAccount = async () => {
     if (!formData.name || !formData.email || !formData.role) {
       toast.error("Please fill out name, email, and role.");
+      return;
+    }
+
+    const salaryValue = Number(formData.monthly_base_salary);
+    if (formData.monthly_base_salary.trim() === "" || isNaN(salaryValue) || salaryValue < 0) {
+      toast.error("Please enter a valid monthly salary.");
       return;
     }
 
@@ -55,7 +64,7 @@ export function EmployeesPage() {
       return max;
     }, 0);
     const newId = `EMP-${maxIdNum + 1}`;
-    
+
     const initials = formData.name
       .split(" ")
       .map((n) => n[0])
@@ -63,18 +72,22 @@ export function EmployeesPage() {
       .toUpperCase()
       .substring(0, 2);
 
+    const hashedPassword = await hashPassword(formData.password);
+
     addEmployeeMutation.mutate(
       {
         id: newId,
         name: formData.name,
         email: formData.email,
         role: formData.role,
-        department: "General", // Default
+        department: formData.department || "General",
         status: "Active",
         attendance: 100,
         avatar_color: "from-blue-500 to-indigo-500",
         initials: initials,
-        password: formData.password,
+        password: hashedPassword,
+        tempPassword: formData.password,
+        base_salary: Number(formData.monthly_base_salary || 0) * 12,
         emergency_contact_name: formData.emergency_contact_name,
         emergency_contact_phone: formData.emergency_contact_phone,
         access_level: formData.access_level
@@ -83,7 +96,7 @@ export function EmployeesPage() {
         onSuccess: () => {
           toast.success("Employee account created successfully.");
           setIsAddModalOpen(false);
-          setFormData({ name: "", email: "", role: "", password: "AutoDigix2026!", emergency_contact_name: "", emergency_contact_phone: "", access_level: "employee" });
+          setFormData({ name: "", email: "", role: "", department: "", monthly_base_salary: "", password: "AutoDigix2026!", emergency_contact_name: "", emergency_contact_phone: "", access_level: "employee" });
         }
       }
     );
@@ -196,19 +209,25 @@ export function EmployeesPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="doj">Date of Joining</Label>
-                      <Input id="doj" type="date" />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="hours">Work Hours / Day</Label>
-                      <Input id="hours" type="number" placeholder="8" defaultValue="8" />
-                    </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="department">Department</Label>
+                    <Input 
+                      id="department" 
+                      placeholder="e.g. Engineering" 
+                      value={formData.department}
+                      onChange={e => setFormData({...formData, department: e.target.value})}
+                    />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="salary">Monthly Salary</Label>
-                    <Input id="salary" type="number" placeholder="₹ 0" />
+                    <Label htmlFor="salary">Monthly Salary (₹) <span className="text-red-500">*</span></Label>
+                    <Input 
+                      id="salary" 
+                      type="number" 
+                      min="0"
+                      placeholder="e.g. 85000" 
+                      value={formData.monthly_base_salary}
+                      onChange={e => setFormData({...formData, monthly_base_salary: e.target.value})}
+                    />
                   </div>
                   
                   <div className="pt-4 border-t mt-4">
@@ -362,10 +381,6 @@ export function EmployeesPage() {
                   <div className="flex justify-between items-center">
                     <span>Contact</span>
                     <span className="text-foreground">{e.email.split('@')[0]}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Password</span>
-                    <span className="text-foreground font-mono bg-muted/50 px-1.5 py-0.5 rounded">{e.password}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span>Access Level</span>

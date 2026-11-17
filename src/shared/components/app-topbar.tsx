@@ -13,15 +13,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useNotifications, useEmployees } from "@/shared/api/queries";
 import { useMarkNotificationRead } from "@/shared/api/mutations";
+import { useNotificationRead } from "@/shared/hooks/use-notification-read";
 import { useAuthStore } from "@/shared/store/auth";
 
 export function AppTopbar() {
   const user = useAuthStore((state) => state.user);
-  const { data: notifications = [] } = useNotifications(user?.id);
+  const { data: notifications = [] } = useNotifications(user?.id, user?.role === 'admin');
   const { data: employees = [] } = useEmployees();
   const markAsRead = useMarkNotificationRead();
+  const { isRead, isBroadcast, markLocalRead } = useNotificationRead(user?.id);
   const logout = useAuthStore((state) => state.logout);
-  const currentUser = employees.find((e: any) => e.id === user?.id) || employees[0];
+  const currentUser = employees.find((e: any) => e.id === user?.id);
   const [dark, setDark] = useState(false);
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -44,7 +46,7 @@ export function AppTopbar() {
           <DropdownMenuTrigger asChild>
             <Button size="icon" variant="ghost" className="relative rounded-xl">
               <Bell className="size-4" />
-              {notifications.some((n: any) => !n.is_read) && (
+              {notifications.some((n: any) => !isRead(n)) && (
                 <span className="absolute right-2 top-2 size-1.5 rounded-full bg-primary" />
               )}
             </Button>
@@ -57,13 +59,15 @@ export function AppTopbar() {
             {notifications.slice(0, 5).map((n: any) => (
               <DropdownMenuItem 
                 key={n.id} 
-                className={`flex flex-col items-start gap-1 rounded-lg px-3 py-2.5 cursor-pointer ${n.is_read ? 'opacity-70' : 'bg-primary/5'}`}
+                className={`flex flex-col items-start gap-1 rounded-lg px-3 py-2.5 cursor-pointer ${isRead(n) ? 'opacity-70' : 'bg-primary/5'}`}
                 onClick={() => {
-                  if (!n.is_read) markAsRead.mutate(n.id);
+                  if (isRead(n)) return;
+                  if (isBroadcast(n)) markLocalRead(n.id);
+                  else markAsRead.mutate(n.id);
                 }}
               >
                 <div className="flex w-full items-center justify-between gap-4">
-                  <span className={`text-sm ${!n.is_read ? 'font-bold text-foreground' : 'font-medium'}`}>{n.title}</span>
+                  <span className={`text-sm ${!isRead(n) ? 'font-bold text-foreground' : 'font-medium'}`}>{n.title}</span>
                   <span className="text-[10px] text-muted-foreground whitespace-nowrap">{n.time.split(",")[0]}</span>
                 </div>
                 <span className="text-xs text-muted-foreground line-clamp-1">{n.body}</span>
@@ -72,7 +76,7 @@ export function AppTopbar() {
             <DropdownMenuSeparator />
             <div className="p-2">
               <Button variant="outline" className="w-full text-xs h-8 rounded-lg" asChild>
-                <a href="/admin/notifications">View all notifications</a>
+                <a href={user?.role === 'admin' ? '/admin/notifications' : '/employee/profile'}>View all notifications</a>
               </Button>
             </div>
           </DropdownMenuContent>

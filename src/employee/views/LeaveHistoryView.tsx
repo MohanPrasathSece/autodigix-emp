@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { useLeaveRequests } from "@/shared/api/queries";
 import { useAuthStore } from "@/shared/store/auth";
+import { formatLeaveDate } from "@/shared/lib/dateUtils";
 import { CalendarX } from "lucide-react";
 
 export function EmployeeLeaveHistoryView() {
@@ -53,7 +54,7 @@ export function EmployeeLeaveHistoryView() {
                   <tr key={record.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-6 py-4 font-medium">{record.id.substring(0, 8).toUpperCase()}</td>
                     <td className="px-6 py-4">{record.type}</td>
-                    <td className="px-6 py-4 text-nowrap">{record.from} to {record.to}</td>
+                    <td className="px-6 py-4 text-nowrap">{formatLeaveDate(record.from)} to {formatLeaveDate(record.to)}</td>
                     <td className="px-6 py-4">{record.days}</td>
                     <td className="px-6 py-4 text-muted-foreground max-w-[200px] truncate" title={record.subject}>{record.subject || "-"}</td>
                     <td className="px-6 py-4">

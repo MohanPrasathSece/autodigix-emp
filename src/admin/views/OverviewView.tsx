@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { exportToCSV } from "@/shared/lib/exportUtils";
-import { getLocalToday } from "@/shared/lib/dateUtils";
+import { getLocalToday, formatLeaveDate, isOnLeaveOn } from "@/shared/lib/dateUtils";
 import { useEmployees, useLeaveRequests, useAttendanceTrend, usePayrollTrend, useDepartmentSplit, usePayslips, useAttendanceHistory } from "@/shared/api/queries";
 import { useUpdateLeaveRequestStatus, useAddNotification } from "@/shared/api/mutations";
 import {
@@ -36,9 +36,9 @@ export function AdminDashboard() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const totalEmployees = employees.length;
-  const onLeaveToday = employees.filter((e: any) => e.status === "On Leave").length;
-  
   const todayStrOverview = getLocalToday();
+  const onLeaveToday = employees.filter((e: any) => isOnLeaveOn(e.absentDates, todayStrOverview)).length;
+  
   const isWorking = (empId: string) => {
     const todayLogs = (attendanceHistory as any[]).filter(h => h.employee_id === empId && h.date === todayStrOverview).sort((a, b) => b.id - a.id);
     return todayLogs.length > 0 && todayLogs[0].status === 'Clocked In';
@@ -64,7 +64,8 @@ export function AdminDashboard() {
           title: "Leave Approved",
           body: `You approved a leave request for ${name}.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          tone: "success"
+          tone: "success",
+          target_id: "admin"
         });
       }
     });
@@ -78,7 +79,8 @@ export function AdminDashboard() {
           title: "Leave Declined",
           body: `You declined a leave request for ${name}.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          tone: "warning"
+          tone: "warning",
+          target_id: "admin"
         });
       }
     });
@@ -104,7 +106,7 @@ export function AdminDashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Employees" value={totalEmployees.toString()} delta="" trend="up" icon={Users} hint="Active headcount" />
         <StatCard label="On leave today" value={onLeaveToday.toString()} delta="" trend={onLeaveToday > 0 ? "down" : "up"} icon={PlaneTakeoff} hint="Current absences" />
-        <StatCard label="Monthly payroll" value={`$${(monthlyPayroll / 1000).toFixed(1)}k`} delta="" trend="up" icon={Wallet} hint={`Period: ${latestPeriod}`} />
+        <StatCard label="Monthly payroll" value={`₹${(monthlyPayroll / 1000).toFixed(1)}k`} delta="" trend="up" icon={Wallet} hint={`Period: ${latestPeriod}`} />
         <StatCard label="Retention" value={retentionRate} delta="" trend="up" icon={TrendingUp} hint="Since inception" />
       </div>
 
@@ -187,7 +189,7 @@ export function AdminDashboard() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{r.name}</div>
-                    <div className="text-xs text-muted-foreground">{r.type} · {r.from} – {r.to} · {r.days}d</div>
+                    <div className="text-xs text-muted-foreground">{r.type} · {formatLeaveDate(r.from)} – {formatLeaveDate(r.to)} · {r.days}d</div>
                   </div>
                 </div>
               ))
@@ -212,7 +214,7 @@ export function AdminDashboard() {
                     </div>
                     <div>
                       <div className="text-sm font-medium text-muted-foreground">Duration</div>
-                      <div className="text-base">{selectedLeave.from_date} to {selectedLeave.to_date} ({selectedLeave.days} days)</div>
+                      <div className="text-base">{formatLeaveDate(selectedLeave.from)} to {formatLeaveDate(selectedLeave.to)} ({selectedLeave.days} days)</div>
                     </div>
                   </div>
                   <div>
@@ -268,7 +270,7 @@ export function AdminDashboard() {
 
         <div className="rounded-2xl border bg-card p-6 shadow-soft">
           <h2 className="text-base font-semibold">Payroll trend</h2>
-          <p className="text-xs text-muted-foreground">Recent months ($)</p>
+          <p className="text-xs text-muted-foreground">Recent months (₹)</p>
           <div className="mt-2 h-52">
             {payrollTrend.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">

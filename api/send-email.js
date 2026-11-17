@@ -25,8 +25,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required fields: to, subject' });
   }
 
-  const smtpEmail = process.env.SMTP_EMAIL || "ZYRADIGITALSofficial@gmail.com";
-  const smtpPassword = process.env.SMTP_PASSWORD || "urlu oupv tewx nrzv";
+  const smtpEmail = process.env.SMTP_EMAIL;
+  const smtpPassword = process.env.SMTP_PASSWORD;
+
+  if (!smtpEmail || !smtpPassword) {
+    console.error('SMTP_EMAIL / SMTP_PASSWORD are not configured. Refusing to send email.');
+    return res.status(500).json({ error: 'Email service is not configured.' });
+  }
 
   const transporter = nodemailer.createTransport({
     service: 'gmail',

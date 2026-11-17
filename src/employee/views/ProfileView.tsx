@@ -17,7 +17,7 @@ export function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const user = useAuthStore((state) => state.user);
   const { data: employees = [], isLoading } = useEmployees();
-  const employeeData = employees.find((e: any) => e.id === user?.id) || employees[0];
+  const employeeData = employees.find((e: any) => e.id === user?.id);
 
   const updateEmployee = useUpdateEmployee();
   const changePassword = useChangePassword();

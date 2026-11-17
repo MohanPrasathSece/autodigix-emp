@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { generatePayslipPDFBase64 } from "@/shared/lib/pdfGenerator";
+import { formatLeaveDate } from "@/shared/lib/dateUtils";
 
 export function EmployeeDetailsView() {
   const { data: employees = [], isLoading } = useEmployees();
@@ -30,6 +31,8 @@ export function EmployeeDetailsView() {
   const [editForm, setEditForm] = useState({
     name: "",
     email: "",
+    payslip_email: "",
+    access_level: "employee",
     phone: "",
     location: "",
     department: "",
@@ -45,10 +48,12 @@ export function EmployeeDetailsView() {
 
   useEffect(() => {
     if (emp) {
-      const monthlyBase = emp.base_salary ? Math.round(emp.base_salary / 12) : 50000;
+      const monthlyBase = emp.base_salary != null ? Math.round(emp.base_salary / 12) : 50000;
       setEditForm({
         name: emp.name || "",
         email: emp.email || "",
+        payslip_email: emp.payslip_email || "",
+        access_level: emp.access_level === "admin" ? "admin" : "employee",
         phone: emp.phone || "",
         location: emp.location || "",
         department: emp.department || "",
@@ -74,6 +79,8 @@ export function EmployeeDetailsView() {
         id: emp.id,
         name: editForm.name,
         email: editForm.email,
+        payslip_email: editForm.payslip_email || editForm.email,
+        access_level: editForm.access_level,
         phone: editForm.phone,
         location: editForm.location,
         department: editForm.department,
@@ -97,10 +104,12 @@ export function EmployeeDetailsView() {
 
   const handleCancel = () => {
     if (emp) {
-      const monthlyBase = emp.base_salary ? Math.round(emp.base_salary / 12) : 50000;
+      const monthlyBase = emp.base_salary != null ? Math.round(emp.base_salary / 12) : 50000;
       setEditForm({
         name: emp.name || "",
         email: emp.email || "",
+        payslip_email: emp.payslip_email || "",
+        access_level: emp.access_level === "admin" ? "admin" : "employee",
         phone: emp.phone || "",
         location: emp.location || "",
         department: emp.department || "",
@@ -155,10 +164,11 @@ export function EmployeeDetailsView() {
   const empLeaves = leaveRequests.filter((leave: any) => leave.name === emp.name || leave.employee_id === emp.id);
   
   const leavesTaken = empLeaves.filter((l: any) => l.status === "Approved").reduce((sum: number, l: any) => sum + l.days, 0);
+  const totalLeaveBalance = emp.leave_balance ?? 24;
   const leaveStats = {
-    total: 24,
+    total: totalLeaveBalance,
     taken: leavesTaken,
-    balance: 24 - leavesTaken
+    balance: Math.max(0, totalLeaveBalance - leavesTaken),
   };
 
   return (
@@ -352,6 +362,36 @@ export function EmployeeDetailsView() {
                       <p className="flex items-center gap-2 text-sm"><MapPin className="size-4 text-muted-foreground" /> {emp.location || "Not provided"}</p>
                     )}
                   </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Payslip Email</p>
+                    {isEditing ? (
+                      <Input
+                        type="email"
+                        value={editForm.payslip_email}
+                        onChange={(e) => setEditForm({ ...editForm, payslip_email: e.target.value })}
+                        placeholder="Defaults to work email"
+                        className="h-8 text-sm"
+                      />
+                    ) : (
+                      <p className="flex items-center gap-2 text-sm"><MailIcon className="size-4 text-muted-foreground" /> {emp.payslip_email || emp.email}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Portal Access Level</p>
+                    {isEditing ? (
+                      <Select value={editForm.access_level} onValueChange={(v) => setEditForm({ ...editForm, access_level: v })}>
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="employee">Employee Access</SelectItem>
+                          <SelectItem value="admin">Admin Access</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm font-medium">{emp.access_level === "admin" ? "Admin" : "Employee"}</p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-8 pt-6 border-t">
@@ -430,7 +470,7 @@ export function EmployeeDetailsView() {
                       </div>
                     ) : (
                       <p className="text-lg font-bold text-foreground">
-                        ₹ {(emp.base_salary ? Math.round(emp.base_salary / 12) : 50000).toLocaleString('en-IN')}
+                        ₹ {(emp.base_salary != null ? Math.round(emp.base_salary / 12) : 50000).toLocaleString('en-IN')}
                       </p>
                     )}
                   </div>
@@ -488,6 +528,12 @@ export function EmployeeDetailsView() {
                         <div>
                           <h3 className="font-bold text-lg">{slip.period}</h3>
                           <p className="text-xs text-muted-foreground">Salary Processed ({slip.status})</p>
+                          {slip.email_status && (
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {slip.email_status}
+                              {slip.email_sent_at ? ` · ${new Date(slip.email_sent_at).toLocaleDateString('en-GB')}` : ""}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="text-right">
@@ -511,6 +557,7 @@ export function EmployeeDetailsView() {
                         <div className="space-y-1">
                           {(slip.tax_amount || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Taxes</span><span>₹ {slip.tax_amount.toLocaleString('en-IN')}</span></div>}
                           {(slip.benefits_amount || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Benefits</span><span>₹ {slip.benefits_amount.toLocaleString('en-IN')}</span></div>}
+                          {(slip.lop_days || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Loss of Pay (LOP)</span><span>{slip.lop_days} day(s)</span></div>}
                           {(slip.unpaid_leave_amount || 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Unpaid Leave</span><span>₹ {slip.unpaid_leave_amount.toLocaleString('en-IN')}</span></div>}
                           <div className="flex justify-between font-semibold mt-2 pt-2 border-t"><span className="text-foreground">Total Deductions</span><span>₹ {(slip.gross - slip.net).toLocaleString('en-IN')}</span></div>
                         </div>
@@ -553,7 +600,7 @@ export function EmployeeDetailsView() {
                     <div key={leave.id} className="flex items-center justify-between p-3 rounded-xl border bg-muted/20">
                       <div>
                         <p className="text-sm font-semibold">{leave.type}</p>
-                        <p className="text-xs text-muted-foreground">{leave.from} to {leave.to} · {leave.days} day(s)</p>
+                        <p className="text-xs text-muted-foreground">{formatLeaveDate(leave.from)} to {formatLeaveDate(leave.to)} · {leave.days} day(s){(leave.lop_days || 0) > 0 ? ` · LOP ${leave.lop_days}d` : ""}</p>
                       </div>
                       <Badge variant="outline" className={cn(
                         "text-[10px]",

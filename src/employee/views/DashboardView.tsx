@@ -14,23 +14,25 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useHolidays, useNotifications, useLeaveRequests } from "@/shared/api/queries";
+import { useHolidays, useNotifications, useLeaveRequests, useEmployees } from "@/shared/api/queries";
 import { useAuthStore } from "@/shared/store/auth";
 import { useNavigate } from "react-router-dom";
 
 export function EmployeeDashboard() {
-  const { isWorking, seconds, startWork, stopWork } = useAttendance();
+  const { isWorking, seconds, startWork, stopWork, isLoading } = useAttendance();
   const { data: holidays = [] } = useHolidays();
   const { user } = useAuthStore();
   const { data: notifications = [] } = useNotifications(user?.id);
   const { data: leaveRequests = [] } = useLeaveRequests();
+  const { data: employees = [] } = useEmployees();
   const navigate = useNavigate();
 
   // Dynamically calculate the user's leaves taken
   const myLeaves = leaveRequests.filter((l: any) => l.employee_id === user?.id && l.status === "Approved");
   const leavesTaken = myLeaves.reduce((sum: number, l: any) => sum + l.days, 0);
-  const totalLeaves = (user as any)?.leave_balance || 24; // Use DB value or fallback to 24
-  const leavesRemaining = totalLeaves - leavesTaken;
+  const me = employees.find((e: any) => e.id === user?.id);
+  const totalLeaves = me?.leave_balance ?? 24; // Real DB balance, fallback to 24
+  const leavesRemaining = Math.max(0, totalLeaves - leavesTaken);
 
   const formatTime = (totalSeconds: number) => {
     const h = Math.floor(totalSeconds / 3600);
@@ -54,11 +56,11 @@ export function EmployeeDashboard() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
         
         <div className="z-10 space-y-1">
-          <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Current Session</h2>
+          <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Today's Total Time</h2>
           <div className="font-mono text-4xl sm:text-5xl font-black tracking-tight tabular-nums text-primary">
             {formatTime(seconds)}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">{isWorking ? "You are currently clocked in and tracking time." : "You are currently clocked out."}</p>
+          <p className="text-xs text-muted-foreground mt-1">{isWorking ? "You are currently clocked in and tracking time." : "You are currently clocked out. You can resume before 7 PM."}</p>
         </div>
 
         <AlertDialog>
@@ -67,10 +69,10 @@ export function EmployeeDashboard() {
               size="default"
               variant={isWorking ? "destructive" : "default"} 
               className="z-10 rounded-xl px-8 shadow-sm hover:scale-105 transition-all mt-2"
-              disabled={!isWorking && isAfter7PM}
+              disabled={isLoading || (!isWorking && isAfter7PM)}
             >
               <Clock className="mr-2 size-4" /> 
-              {isWorking ? "Stop Work" : "Start Work"}
+              {isLoading ? "Loading…" : isWorking ? "Stop Work" : seconds > 0 ? "Resume Work" : "Start Work"}
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent className="rounded-xl">
@@ -78,15 +80,15 @@ export function EmployeeDashboard() {
               <AlertDialogTitle>Are you sure?</AlertDialogTitle>
               <AlertDialogDescription>
                 {isWorking 
-                  ? "You are about to stop your work timer. You can resume it later today, but your active tracking will pause."
-                  : "You are about to start your work timer. Your daily hours will be tracked."}
+                  ? "You are about to pause your work timer. Your time so far today is saved and you can resume anytime before 7 PM."
+                  : "You are about to start (or resume) your work timer. Your daily hours will keep accumulating."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-lg">Cancel</AlertDialogCancel>
               <AlertDialogAction 
                 className="rounded-lg"
-                onClick={isWorking ? stopWork : startWork}
+                onClick={isWorking ? () => stopWork() : startWork}
               >
                 Confirm
               </AlertDialogAction>
@@ -98,9 +100,6 @@ export function EmployeeDashboard() {
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard label="Live Attendance" value={`${progressPercent}%`} icon={CalendarCheck} hint="Based on 8-hour workday" />
         <StatCard label="Leaves Available" value={`${leavesRemaining} days`} icon={PlaneTakeoff} hint={`Remaining of ${totalLeaves} days`} />
-      </div>
-
-      <div className="grid gap-6">
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

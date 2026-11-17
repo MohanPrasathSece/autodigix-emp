@@ -15,6 +15,7 @@ import {
 
 import { useHolidays, useLeaveRequests } from "@/shared/api/queries";
 import { useAuthStore } from "@/shared/store/auth";
+import { parseLeaveDate } from "@/shared/lib/dateUtils";
 
 type DayKind = "present" | "leave-approved" | "leave-pending" | "govt-holiday" | "weekend" | "absent" | "none";
 
@@ -53,8 +54,9 @@ function buildDays(year: number, month: number, govtHolidaysMap: Record<string, 
 
     // Check if this date falls in any user leave
     const leaveForDay = userLeaves.find(l => {
-      const from = new Date(l.from || l.from_date);
-      const to = new Date(l.to || l.to_date);
+      const from = parseLeaveDate(l.from || l.from_date);
+      const to = parseLeaveDate(l.to || l.to_date);
+      if (!from || !to) return false;
       return dt >= from && dt <= to;
     });
 
@@ -87,7 +89,7 @@ const legend: { kind: DayKind; label: string }[] = [
 ];
 
 export function CalendarPage() {
-  const [baseDate, setBaseDate] = useState(new Date(2026, 6, 1)); // Starts July 2026
+  const [baseDate, setBaseDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<{ date: Date; kind: DayKind; note: string } | null>(null);
 
   const { data: holidays = [] } = useHolidays();

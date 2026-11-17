@@ -13,16 +13,18 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { format, isWeekend, eachDayOfInterval } from "date-fns";
+import { toLocalISO, formatLeaveDate } from "@/shared/lib/dateUtils";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAttendance } from "@/lib/attendanceEngine";
-import { useLeaveRequests } from "@/shared/api/queries";
+import { useLeaveRequests, useEmployees } from "@/shared/api/queries";
 import { useApplyLeave, useDeleteLeaveRequest } from "@/shared/api/mutations";
 import { useAuthStore } from "@/shared/store/auth";
 
 export function LeavePage() {
   const { user } = useAuthStore();
   const { data: allLeaveRequests = [], isLoading } = useLeaveRequests();
+  const { data: employees = [] } = useEmployees();
   const applyLeaveMutation = useApplyLeave();
   const deleteLeaveMutation = useDeleteLeaveRequest();
 
@@ -36,8 +38,9 @@ export function LeavePage() {
     return myLeaves.filter((l: any) => l.status === "Approved").reduce((sum: number, l: any) => sum + l.days, 0);
   }, [myLeaves]);
 
-  const totalLeaves = 24;
-  const leavesRemaining = totalLeaves - leavesTaken;
+  const me = employees.find((e: any) => e.id === user?.id);
+  const totalLeaves = me?.leave_balance ?? 24;
+  const leavesRemaining = Math.max(0, totalLeaves - leavesTaken);
 
   const [range, setRange] = useState<{ from?: Date; to?: Date }>({});
   const [open, setOpen] = useState(false);
@@ -71,26 +74,22 @@ export function LeavePage() {
 
   const handleSubmit = () => {
     if (!canSubmit || !user) return;
-    
-    // Generate sequential ID based on total count
-    const maxId = allLeaveRequests.reduce((max: number, req: any) => {
-      const numId = parseInt(req.id);
-      return !isNaN(numId) && numId > max ? numId : max;
-    }, 0);
-    const newId = (maxId + 1).toString();
-    
+
     let displayType = "Vacation";
     if (leaveType === "sick") displayType = "Sick Leave";
     if (leaveType === "unpaid") displayType = "Unpaid Leave";
 
+    const fromDate = toLocalISO(range.from!);
+    const toDate = isHalfDay ? fromDate : (range.to ? toLocalISO(range.to) : fromDate);
+
     applyLeaveMutation.mutate(
       {
-        id: newId,
+        id: "",
         employee_id: user.id,
         name: user.name,
         type: displayType,
-        from_date: format(range.from!, "MMM dd"),
-        to_date: isHalfDay ? format(range.from!, "MMM dd") : (range.to ? format(range.to, "MMM dd") : format(range.from!, "MMM dd")),
+        from_date: fromDate,
+        to_date: toDate,
         days: businessDays,
         status: "Pending",
         subject: isHalfDay ? `${subject} (Half Day - ${halfDaySession})` : subject,
@@ -116,7 +115,7 @@ export function LeavePage() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Leave & Time Off"
-        description="Apply for leave. Note: Max 2 paid leaves/month, max 6 continuous."
+        description="Apply for leave. Note: paid leave beyond 2 days/month is unpaid (LOP), max 6 continuous."
         actions={
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -326,7 +325,7 @@ export function LeavePage() {
                   <span className="text-sm font-medium">{l.type}</span>
                   <span className="text-xs text-muted-foreground">· {l.days} day{l.days > 1 ? "s" : ""}</span>
                 </div>
-                <div className="text-xs text-muted-foreground">{l.from} - {l.to} · {l.subject}</div>
+                <div className="text-xs text-muted-foreground">{formatLeaveDate(l.from)} - {formatLeaveDate(l.to)} · {l.subject}</div>
               </div>
               <div className="flex items-center gap-3">
                 <Badge

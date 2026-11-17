@@ -21,11 +21,11 @@ export function AdminProfileView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: employees = [], isLoading } = useEmployees();
-  const { data: notifications = [] } = useNotifications(user?.id);
+  const { data: notifications = [] } = useNotifications(user?.id, user?.role === 'admin');
   const updateEmployee = useUpdateEmployee();
   const changePassword = useChangePassword();
 
-  const employeeData = employees.find((e: any) => e.id === user?.id) || employees[0];
+  const employeeData = employees.find((e: any) => e.id === user?.id);
 
   const [tempProfile, setTempProfile] = useState({
     name: "",
@@ -43,8 +43,8 @@ export function AdminProfileView() {
         ...prev,
         name: employeeData.name,
         email: employeeData.email,
-        phone: employeeData.phone || "+1 (555) 019-8234",
-        location: employeeData.location || "New York, NY",
+        phone: employeeData.phone || "",
+        location: employeeData.location || "",
         initials: employeeData.initials || employeeData.name.substring(0, 2).toUpperCase(),
         avatarUrl: employeeData.avatarUrl || localStorage.getItem(ADMIN_AVATAR_KEY) || ""
       }));
@@ -107,8 +107,8 @@ export function AdminProfileView() {
         ...prev,
         name: employeeData.name,
         email: employeeData.email,
-        phone: employeeData.phone || "+1 (555) 019-8234",
-        location: employeeData.location || "New York, NY",
+        phone: employeeData.phone || "",
+        location: employeeData.location || "",
         initials: employeeData.initials || employeeData.name.substring(0, 2).toUpperCase(),
         avatarUrl: employeeData.avatarUrl || localStorage.getItem(ADMIN_AVATAR_KEY) || ""
       }));
@@ -334,19 +334,19 @@ export function AdminProfileView() {
               <div className="space-y-4 text-sm">
                 <div className="flex justify-between items-center border-b pb-2">
                   <span className="text-muted-foreground font-medium">Account ID</span>
-                  <span className="font-bold">ADM-001</span>
+                  <span className="font-bold">{employeeData?.id ? String(employeeData.id).slice(0, 8).toUpperCase() : "—"}</span>
                 </div>
                 <div className="flex justify-between items-center border-b pb-2">
                   <span className="text-muted-foreground font-medium">Role Level</span>
-                  <span className="font-bold text-blue-600">Super Admin</span>
+                  <span className="font-bold text-blue-600">{employeeData?.access_level === "admin" ? "Admin" : "Employee"}</span>
                 </div>
                 <div className="flex justify-between items-center border-b pb-2">
                   <span className="text-muted-foreground font-medium">Joined Date</span>
-                  <span className="font-bold">{new Date(employeeData.created_at || new Date()).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                  <span className="font-bold">{employeeData?.created_at ? new Date(employeeData.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : "—"}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-medium">Last Login</span>
-                  <span className="font-bold text-emerald-600">Today, 08:30 AM</span>
+                  <span className="text-muted-foreground font-medium">Email</span>
+                  <span className="font-bold">{employeeData?.email || "—"}</span>
                 </div>
               </div>
             </div>

@@ -1,8 +1,8 @@
 // @refresh reset
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/shared/store/auth";
-import { useUpdateAttendance, useLogAttendance } from "@/shared/api/mutations";
+import { useLogAttendance } from "@/shared/api/mutations";
 import { supabase } from "@/lib/supabaseClient";
 import { getLocalToday } from "@/shared/lib/dateUtils";
 
@@ -21,9 +21,12 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
   const [seconds, setSeconds] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [clockInTime, setClockInTime] = useState<number | null>(null);
+  // Seconds already accumulated from earlier, completed sessions today.
+  const [baseSeconds, setBaseSeconds] = useState(0);
+  // Guards against the auto-stop firing repeatedly on every tick.
+  const stoppingRef = useRef(false);
 
   const { user } = useAuthStore();
-  const updateAttendanceMutation = useUpdateAttendance();
   const logAttendanceMutation = useLogAttendance();
 
   // Load state from DB on mount
@@ -33,8 +36,12 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
         return;
       }
-      
+
       const today = getLocalToday();
+      const now = new Date();
+      const nowMs = now.getTime();
+
+      // 1. Auto-close any stale open sessions left from previous days at 7 PM.
       const { data: openRecords, error } = await supabase
         .from('attendance_history')
         .select('*')
@@ -45,76 +52,89 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
         console.error("Failed to load attendance", error);
       }
 
-      let activeClockInTime: number | null = null;
-      const now = new Date();
-
-      if (openRecords && openRecords.length > 0) {
-        for (const record of openRecords) {
-          const clockInDate = new Date(record.clock_in_time || record.created_at);
-          const isToday = record.date === today;
-          
-          const sevenPM = new Date(clockInDate);
-          sevenPM.setHours(19, 0, 0, 0);
-
-          if (!isToday || now.getTime() >= sevenPM.getTime()) {
-            // Auto close at 7 PM of that day
-            const finalEndTime = sevenPM.getTime() < clockInDate.getTime() ? clockInDate.getTime() + 60000 : sevenPM.getTime();
-            const finalSeconds = Math.floor((finalEndTime - clockInDate.getTime()) / 1000);
-            const hoursWorked = finalSeconds / 3600;
-            
-            await supabase.from('attendance_history').update({
-              status: 'Clocked Out',
-              hours: hoursWorked
-            }).eq('id', record.id);
-          } else {
-            // Still active today and before 7 PM
-            activeClockInTime = clockInDate.getTime();
-          }
-        }
+      for (const record of openRecords || []) {
+        if (record.date === today) continue; // today's open session is handled below
+        const clockInDate = new Date(record.clock_in_time || record.created_at);
+        const sevenPM = new Date(clockInDate);
+        sevenPM.setHours(19, 0, 0, 0);
+        const finalEndTime = sevenPM.getTime() < clockInDate.getTime() ? clockInDate.getTime() + 60000 : sevenPM.getTime();
+        const sessionSeconds = Math.floor((finalEndTime - clockInDate.getTime()) / 1000);
+        const totalHours = (Number(record.hours) || 0) + sessionSeconds / 3600;
+        await supabase.from('attendance_history').update({
+          status: 'Clocked Out',
+          hours: totalHours,
+        }).eq('id', record.id);
       }
 
-      if (activeClockInTime) {
-        setIsWorking(true);
-        setClockInTime(activeClockInTime);
-        setSeconds(Math.floor((now.getTime() - activeClockInTime) / 1000));
-      } else {
-        setIsWorking(false);
-        setClockInTime(null);
-        // Load today's total seconds if clocked out
-        const { data: todayData } = await supabase
-          .from('attendance_history')
-          .select('*')
-          .eq('employee_id', user.id)
-          .eq('date', today)
-          .maybeSingle();
-        
-        if (todayData && todayData.status === 'Clocked Out') {
-          setSeconds(Math.floor(todayData.hours * 3600));
+      // 2. Load today's single attendance row.
+      const { data: todayRows } = await supabase
+        .from('attendance_history')
+        .select('*')
+        .eq('employee_id', user.id)
+        .eq('date', today)
+        .order('id', { ascending: false })
+        .limit(1);
+      const todayRecord = todayRows && todayRows[0];
+
+      if (todayRecord && todayRecord.status === 'Clocked In') {
+        const sessionStart = new Date(todayRecord.clock_in_time || todayRecord.created_at).getTime();
+        const base = Math.floor((Number(todayRecord.hours) || 0) * 3600);
+        const sevenPM = new Date(sessionStart);
+        sevenPM.setHours(19, 0, 0, 0);
+
+        if (nowMs >= sevenPM.getTime()) {
+          // Active session ran past 7 PM — close it out.
+          const finalEndTime = sevenPM.getTime() < sessionStart ? sessionStart + 60000 : sevenPM.getTime();
+          const sessionSeconds = Math.floor((finalEndTime - sessionStart) / 1000);
+          const totalHours = (Number(todayRecord.hours) || 0) + sessionSeconds / 3600;
+          await supabase.from('attendance_history').update({
+            status: 'Clocked Out',
+            hours: totalHours,
+          }).eq('id', todayRecord.id);
+          setBaseSeconds(0);
+          setClockInTime(null);
+          setIsWorking(false);
+          setSeconds(Math.floor(totalHours * 3600));
         } else {
-          setSeconds(0);
+          setBaseSeconds(base);
+          setClockInTime(sessionStart);
+          setIsWorking(true);
+          setSeconds(base + Math.floor((nowMs - sessionStart) / 1000));
         }
+      } else if (todayRecord && todayRecord.status === 'Clocked Out') {
+        setBaseSeconds(0);
+        setClockInTime(null);
+        setIsWorking(false);
+        setSeconds(Math.floor((Number(todayRecord.hours) || 0) * 3600));
+      } else {
+        setBaseSeconds(0);
+        setClockInTime(null);
+        setIsWorking(false);
+        setSeconds(0);
       }
       setIsLoading(false);
     }
-    
+
     loadAttendance();
   }, [user]);
 
   const startWork = async () => {
     if (!user?.id) return;
-    
+
     const now = Date.now();
+    const carried = seconds; // time already worked today
+    setBaseSeconds(carried);
     setClockInTime(now);
     setIsWorking(true);
-    
+
     try {
-      await logAttendanceMutation.mutateAsync({ employee_id: user.id, action: 'Clock In' });
-      await updateAttendanceMutation.mutateAsync({ id: user.id, newAttendance: 50 });
-      toast.success("Clocked In", { description: "Your attendance has been logged in the system." });
+      await logAttendanceMutation.mutateAsync({ employee_id: user.id, employee_name: user.name, action: 'Clock In' });
+      toast.success("Clocked In", { description: "Attendance started. You can pause and resume anytime before 7 PM." });
     } catch (e: any) {
       toast.error(e.message || "Failed to clock in");
       setIsWorking(false);
       setClockInTime(null);
+      setBaseSeconds(0);
     }
   };
 
@@ -122,7 +142,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     if (!user?.id || !clockInTime) return;
 
     let finalEndTime = Date.now();
-    
+
     if (autoStopAt7) {
       const sevenPM = new Date(clockInTime);
       sevenPM.setHours(19, 0, 0, 0);
@@ -131,25 +151,24 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
 
     if (finalEndTime < clockInTime) finalEndTime = clockInTime + 60000;
 
-    const finalSeconds = Math.floor((finalEndTime - clockInTime) / 1000);
-    const hoursWorked = finalSeconds / 3600;
-    
+    const sessionSeconds = Math.floor((finalEndTime - clockInTime) / 1000);
+    const totalSeconds = baseSeconds + sessionSeconds;
+    const hoursWorked = sessionSeconds / 3600;
+
     setIsWorking(false);
-    setSeconds(finalSeconds);
+    setSeconds(totalSeconds);
 
     try {
-      await logAttendanceMutation.mutateAsync({ 
-        employee_id: user.id, 
-        action: 'Clock Out', 
+      await logAttendanceMutation.mutateAsync({
+        employee_id: user.id,
+        employee_name: user.name,
+        action: 'Clock Out',
         hours: hoursWorked,
         timestamp: new Date(finalEndTime).toISOString()
       });
-      if (hoursWorked < 4) {
-        await updateAttendanceMutation.mutateAsync({ id: user.id, newAttendance: 50 });
-      } else {
-        await updateAttendanceMutation.mutateAsync({ id: user.id, newAttendance: 100 });
-      }
-      toast.success("Clocked Out", { description: autoStopAt7 ? "Shift auto-ended at 7 PM." : "Your shift has ended." });
+      setClockInTime(null);
+      setBaseSeconds(totalSeconds);
+      toast.success("Clocked Out", { description: autoStopAt7 ? "Shift auto-ended at 7 PM." : "Paused — you can resume anytime before 7 PM." });
     } catch (e: any) {
       toast.error(e.message || "Failed to clock out");
       setIsWorking(true);
@@ -163,14 +182,17 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     const interval = setInterval(() => {
       const now = new Date();
       if (now.getHours() >= 19) {
-         stopWork(true);
+         if (!stoppingRef.current) {
+           stoppingRef.current = true;
+           stopWork(true).finally(() => { stoppingRef.current = false; });
+         }
       } else {
-         setSeconds(Math.floor((now.getTime() - clockInTime) / 1000));
+         setSeconds(baseSeconds + Math.floor((now.getTime() - clockInTime) / 1000));
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isWorking, clockInTime]);
+  }, [isWorking, clockInTime, baseSeconds]);
 
   return (
     <AttendanceContext.Provider value={{ isWorking, seconds, startWork, stopWork, isLoading }}>

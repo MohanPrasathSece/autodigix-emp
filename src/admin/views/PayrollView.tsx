@@ -103,9 +103,9 @@ export function PayrollPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label={`Net (${latestPeriod})`} value={`$${net.toLocaleString()}`} icon={Wallet} hint="Company Total" />
-        <StatCard label={`Gross (${latestPeriod})`} value={`$${gross.toLocaleString()}`} icon={Banknote} hint="Before Deductions" />
-        <StatCard label="YTD Payroll" value={`$${ytdEarnings.toLocaleString()}`} delta="" trend="up" icon={TrendingUp} hint="Total processed" />
+        <StatCard label={`Net (${latestPeriod})`} value={`₹${net.toLocaleString()}`} icon={Wallet} hint="Company Total" />
+        <StatCard label={`Gross (${latestPeriod})`} value={`₹${gross.toLocaleString()}`} icon={Banknote} hint="Before Deductions" />
+        <StatCard label="YTD Payroll" value={`₹${ytdEarnings.toLocaleString()}`} delta="" trend="up" icon={TrendingUp} hint="Total processed" />
         <StatCard label="Next payout" value="End of Month" icon={Wallet} hint="via direct deposit" />
       </div>
 
@@ -151,20 +151,20 @@ export function PayrollPage() {
                 {breakdown.map((b: any) => (
                   <div key={b.label} className="flex items-center justify-between border-b border-dashed py-1.5 last:border-0">
                     <span className="text-muted-foreground">{b.label}</span>
-                    <span className="font-medium">${b.value.toLocaleString()}</span>
+                    <span className="font-medium">₹{b.value.toLocaleString()}</span>
                   </div>
                 ))}
                 <div className="mt-3 flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2 text-sm font-semibold">
-                  <span>Gross</span><span>${gross.toLocaleString()}</span>
+                  <span>Gross (before deductions)</span><span>₹{(totalBase + totalAllowances).toLocaleString()}</span>
                 </div>
                 {deductionsList.map((b: any) => (
                   <div key={b.label} className="flex items-center justify-between border-b border-dashed py-1.5 last:border-0 text-rose-600 dark:text-rose-400">
                     <span className="text-muted-foreground">{b.label}</span>
-                    <span className="font-medium">-${b.value.toLocaleString()}</span>
+                    <span className="font-medium">-₹{b.value.toLocaleString()}</span>
                   </div>
                 ))}
                 <div className="mt-3 flex items-center justify-between rounded-lg bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">
-                  <span>Net take-home</span><span>${net.toLocaleString()}</span>
+                  <span>Net take-home</span><span>₹{net.toLocaleString()}</span>
                 </div>
               </>
             )}
@@ -184,20 +184,21 @@ export function PayrollPage() {
               <TableHead className="text-xs uppercase tracking-wide">Gross</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Net</TableHead>
               <TableHead className="text-xs uppercase tracking-wide">Status</TableHead>
+              <TableHead className="text-xs uppercase tracking-wide">Payslip Email</TableHead>
               <TableHead className="pr-5 text-right text-xs uppercase tracking-wide">Payslip</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {payslips.length === 0 ? (
                <TableRow>
-                 <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No payslips found in the system.</TableCell>
+                 <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">No payslips found in the system.</TableCell>
                </TableRow>
             ) : (
               payslips.map((p: any) => (
                 <TableRow key={p.id} className="transition-colors hover:bg-muted/30">
                   <TableCell className="pl-5 font-medium">{p.period}</TableCell>
-                  <TableCell className="text-sm tabular-nums">${p.gross.toLocaleString()}</TableCell>
-                  <TableCell className="text-sm font-semibold tabular-nums">${p.net.toLocaleString()}</TableCell>
+                  <TableCell className="text-sm tabular-nums">₹{p.gross.toLocaleString()}</TableCell>
+                  <TableCell className="text-sm font-semibold tabular-nums">₹{p.net.toLocaleString()}</TableCell>
                   <TableCell>
                     <Badge
                       variant="outline"
@@ -209,6 +210,10 @@ export function PayrollPage() {
                     >
                       {p.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {p.email_status || "—"}
+                    {p.email_sent_at ? <span className="block text-[10px]">{new Date(p.email_sent_at).toLocaleDateString('en-GB')}</span> : null}
                   </TableCell>
                   <TableCell className="pr-5 text-right">
                     <Button size="sm" variant="ghost" className="rounded-lg" onClick={() => handleDownloadPDF(p)} title="Download PDF Payslip">

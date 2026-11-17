@@ -449,17 +449,25 @@ export const useRunPayroll = () => {
         throw new Error(`Payroll for ${period} has already been processed.`);
       }
 
-      // 1. Fetch active employees (including base_salary, monthly_allowance, monthly_benefits_deduction)
-      const { data: employees, error: fetchError } = await supabase
+      // 1. Fetch active employees (excluding super admin and terminated)
+      const { data: rawEmployees, error: fetchError } = await supabase
         .from('employees')
-        .select('id, name, email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction')
+        .select('id, name, email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction, payslip_email, tax_percentage')
         .neq('status', 'Terminated');
 
-    if(fetchError) throw new Error(fetchError.message);
+      if (fetchError) throw new Error(fetchError.message);
 
-    if(!employees || employees.length === 0) {
-    throw new Error("No active employees found to run payroll.");
-  }
+      const employees = (rawEmployees || []).filter((e: any) =>
+        e.id !== 'EMP-000' &&
+        (e.email || '').toLowerCase() !== 'admin@company.com' &&
+        (e.role || '').toLowerCase() !== 'admin' &&
+        (e.role || '').toLowerCase() !== 'super admin' &&
+        (e.name || '').toLowerCase() !== 'super admin'
+      );
+
+      if (employees.length === 0) {
+        throw new Error("No active employees found to run payroll.");
+      }
 
   // 2. Fetch unpaid leaves for deductions
   const { data: absentDates } = await supabase

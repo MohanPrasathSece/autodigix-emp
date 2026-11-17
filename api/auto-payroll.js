@@ -167,13 +167,21 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, message: `Payroll for ${period} was already processed.` });
   }
 
-  // 2. Fetch active employees
-  const { data: employees, error: empErr } = await supabase
+  // 2. Fetch active staff employees (exclude terminated and super admin)
+  const { data: rawEmployees, error: empErr } = await supabase
     .from('employees')
     .select('id, name, email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction, payslip_email, tax_percentage')
     .neq('status', 'Terminated');
 
-  if (empErr || !employees || employees.length === 0) {
+  const employees = (rawEmployees || []).filter((e) =>
+    e.id !== 'EMP-000' &&
+    (e.email || '').toLowerCase() !== 'admin@company.com' &&
+    (e.role || '').toLowerCase() !== 'admin' &&
+    (e.role || '').toLowerCase() !== 'super admin' &&
+    (e.name || '').toLowerCase() !== 'super admin'
+  );
+
+  if (empErr || employees.length === 0) {
     return res.status(200).json({ message: 'No active employees to process.' });
   }
 

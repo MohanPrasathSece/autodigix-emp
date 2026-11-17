@@ -58,7 +58,16 @@ function CircularProgress({ value, color = "var(--primary)" }: { value: number, 
 
 // 6-Month Calendar Component
 function AbsenceCalendar() {
-  const { data: employees = [] } = useEmployees();
+  const { data: rawEmployees = [] } = useEmployees();
+  const employees = useMemo(() => {
+    return rawEmployees.filter((e: any) =>
+      e.id !== "EMP-000" &&
+      (e.email || "").toLowerCase() !== "admin@company.com" &&
+      (e.role || "").toLowerCase() !== "admin" &&
+      (e.role || "").toLowerCase() !== "super admin" &&
+      (e.name || "").toLowerCase() !== "super admin"
+    );
+  }, [rawEmployees]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const daysInMonth = useMemo(() => {
@@ -246,7 +255,16 @@ function AttendanceHistoryTable({ rows, employees }: { rows: any[]; employees: a
 }
 
 export function AttendancePage() {
-  const { data: employees = [] } = useEmployees();
+  const { data: rawEmployees = [] } = useEmployees();
+  const employees = useMemo(() => {
+    return rawEmployees.filter((e: any) =>
+      e.id !== "EMP-000" &&
+      (e.email || "").toLowerCase() !== "admin@company.com" &&
+      (e.role || "").toLowerCase() !== "admin" &&
+      (e.role || "").toLowerCase() !== "super admin" &&
+      (e.name || "").toLowerCase() !== "super admin"
+    );
+  }, [rawEmployees]);
   const { data: attendanceHistory = [] } = useAttendanceHistory();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("live");

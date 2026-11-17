@@ -64,10 +64,21 @@ export function EmployeesPage() {
     }
   };
 
-  const rows = employees.filter(
+  const isSuperAdmin = (e: any) =>
+    e.id === "EMP-000" ||
+    (e.email || "").toLowerCase() === "admin@company.com" ||
+    (e.role || "").toLowerCase() === "admin" ||
+    (e.role || "").toLowerCase() === "super admin" ||
+    (e.name || "").toLowerCase() === "super admin";
+
+  const staffEmployees = employees.filter((e: any) => !isSuperAdmin(e));
+
+  const rows = staffEmployees.filter(
     (e: any) =>
       e.name.toLowerCase().includes(q.toLowerCase()) ||
-      e.role.toLowerCase().includes(q.toLowerCase()),
+      e.role.toLowerCase().includes(q.toLowerCase()) ||
+      (e.department || "").toLowerCase().includes(q.toLowerCase()) ||
+      (e.id || "").toLowerCase().includes(q.toLowerCase()),
   );
 
   const handleCreateAccount = async () => {
@@ -461,7 +472,7 @@ export function EmployeesPage() {
             />
           </div>
           <div className="text-xs font-medium text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-lg">
-            Showing {rows.length} of {employees.length}
+            Showing {rows.length} of {staffEmployees.length}
           </div>
         </div>
 

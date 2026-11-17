@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Users, UserCheck, PlaneTakeoff, Wallet, ChevronRight, FileSpreadsheet, PlusCircle, UserPlus, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
@@ -32,13 +32,24 @@ export function AdminDashboardView() {
 
   const pendingLeaves = leaveRequests.filter((r: any) => r.status === "Pending").slice(0, 3);
   
-  // Active headcount — terminated employees are excluded from all live metrics.
-  const totalEmployees = employees.filter((e: any) => e.status !== 'Terminated').length;
+  const isSuperAdmin = (e: any) =>
+    e.id === "EMP-000" ||
+    (e.email || "").toLowerCase() === "admin@company.com" ||
+    (e.role || "").toLowerCase() === "admin" ||
+    (e.role || "").toLowerCase() === "super admin" ||
+    (e.name || "").toLowerCase() === "super admin";
+
+  const staffEmployees = useMemo(() => {
+    return employees.filter((e: any) => !isSuperAdmin(e) && e.status !== 'Terminated');
+  }, [employees]);
+
+  // Active staff headcount — terminated employees and super admin are excluded.
+  const totalEmployees = staffEmployees.length;
 
   // Check if an employee is currently clocked in today
   const todayStrDashboard = getLocalToday();
   // "On Leave" is derived from approved leaves (absent_dates) for today.
-  const onLeaveEmployees = employees.filter((e: any) => isOnLeaveOn(e.absentDates, todayStrDashboard)).length;
+  const onLeaveEmployees = staffEmployees.filter((e: any) => isOnLeaveOn(e.absentDates, todayStrDashboard)).length;
   const expectedToWork = totalEmployees - onLeaveEmployees;
 
   const isWorking = (empId: string) => {
@@ -46,11 +57,10 @@ export function AdminDashboardView() {
     return todayLogs.length > 0 && todayLogs[0].status === 'Clocked In';
   };
   
-  const activeEmployees = employees.filter((e: any) => isWorking(e.id)).length;
+  const activeEmployees = staffEmployees.filter((e: any) => isWorking(e.id)).length;
 
   // Present employees: any active employee who clocked in at least once today
-  const presentEmployees = employees.filter((e: any) => 
-    e.status !== 'Terminated' &&
+  const presentEmployees = staffEmployees.filter((e: any) => 
     (attendanceHistory as any[]).some(h => h.employee_id === e.id && h.date === todayStrDashboard)
   ).length;
 

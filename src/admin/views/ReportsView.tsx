@@ -11,18 +11,14 @@ import { useAttendanceHistory, useEmployees } from "@/shared/api/queries";
 import { Download, Search, Calendar, Clock, UserCheck, Users, TrendingUp, AlertTriangle, CheckCircle2, Timer, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { eachDayOfInterval, startOfMonth, endOfMonth, isWeekend, format, parseISO, getDay } from "date-fns";
+import { eachDayOfInterval, startOfMonth, endOfMonth, isWeekend, format } from "date-fns";
 
-// Working days in a month (Mon–Fri only)
 function getWorkingDaysInMonth(yearMonth: string): number {
   const [year, month] = yearMonth.split("-").map(Number);
   const start = startOfMonth(new Date(year, month - 1));
   const end = endOfMonth(new Date(year, month - 1));
   return eachDayOfInterval({ start, end }).filter((d) => !isWeekend(d)).length;
 }
-
-// Day-of-week label
-const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 interface EmployeeReport {
   id: string;
@@ -38,19 +34,11 @@ interface EmployeeReport {
   attendanceRate: number;
   totalHours: number;
   avgHoursPerDay: string;
-  // Punctuality (login time buckets)
-  onTimeDays: number;      // clock-in <= 09:30
-  lateDays: number;        // clock-in > 09:30
-  // Streaks
+  onTimeDays: number;
+  lateDays: number;
   longestStreak: number;
-  currentStreak: number;
-  // Most absent day of week (0=Sun..6=Sat)
-  mostAbsentDow: string;
-  // Undertime days (worked < 7h on days they clocked out)
   undertimeDays: number;
-  // Overtime days (worked > 9h)
   overtimeDays: number;
-  // Raw daily logs for drill-down
   dailyLogs: { date: string; clockIn: string; clockOut: string; hours: number; status: string }[];
 }
 
@@ -59,7 +47,6 @@ export function ReportsView() {
   const { data: attendanceHistory = [], isLoading: attLoading } = useAttendanceHistory();
   const [selectedEmp, setSelectedEmp] = useState<EmployeeReport | null>(null);
 
-  // Exclude super admin / admin accounts
   const employees = useMemo(() => {
     return (rawEmployees as any[]).filter((e: any) =>
       e.status !== "Terminated" &&
@@ -71,7 +58,6 @@ export function ReportsView() {
     );
   }, [rawEmployees]);
 
-  // Generate last 12 months options
   const monthOptions = useMemo(() => {
     const list = [];
     const now = new Date();
@@ -89,7 +75,6 @@ export function ReportsView() {
 
   const workingDays = useMemo(() => getWorkingDaysInMonth(selectedMonth), [selectedMonth]);
 
-  // Per-employee analytics
   const reportData = useMemo<EmployeeReport[]>(() => {
     if (!selectedMonth) return [];
 
@@ -99,7 +84,6 @@ export function ReportsView() {
         return String(h.date || "").slice(0, 7) === selectedMonth;
       });
 
-      // Days with any clock activity
       const uniqueDates = new Set(
         empLogs
           .filter((h: any) => h.status === "Clocked In" || h.status === "Clocked Out" || Number(h.hours) > 0)
@@ -133,7 +117,7 @@ export function ReportsView() {
         if (hrs > 9) overtimeDays++;
       });
 
-      // Streak calculation — consecutive working days present
+      // Longest streak
       const [year, month] = selectedMonth.split("-").map(Number);
       const monthDays = eachDayOfInterval({
         start: startOfMonth(new Date(year, month - 1)),
@@ -143,31 +127,17 @@ export function ReportsView() {
         .map((d) => format(d, "yyyy-MM-dd"));
 
       let longestStreak = 0;
-      let currentStreak = 0;
       let tempStreak = 0;
       for (const day of monthDays) {
         if (uniqueDates.has(day)) {
           tempStreak++;
           longestStreak = Math.max(longestStreak, tempStreak);
-          currentStreak = tempStreak;
         } else {
           tempStreak = 0;
         }
       }
 
-      // Most absent day of week
-      const absentDowCounts = [0, 0, 0, 0, 0, 0, 0];
-      monthDays.forEach((day) => {
-        if (!uniqueDates.has(day)) {
-          const dow = getDay(parseISO(day));
-          absentDowCounts[dow]++;
-        }
-      });
-      const maxAbsent = Math.max(...absentDowCounts);
-      const mostAbsentDowIdx = maxAbsent > 0 ? absentDowCounts.indexOf(maxAbsent) : -1;
-      const mostAbsentDow = mostAbsentDowIdx >= 0 ? DOW_LABELS[mostAbsentDowIdx] : "—";
-
-      // Daily logs for drill-down
+      // Daily logs
       const dailyLogs = empLogs
         .filter((h: any) => h.date)
         .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)))
@@ -203,8 +173,6 @@ export function ReportsView() {
         onTimeDays,
         lateDays,
         longestStreak,
-        currentStreak,
-        mostAbsentDow,
         undertimeDays,
         overtimeDays,
         dailyLogs,
@@ -235,11 +203,11 @@ export function ReportsView() {
 
   const handleExportCSV = () => {
     if (reportData.length === 0) { toast.info("No data to export."); return; }
-    const headers = ["Employee ID", "Employee Name", "Department", "Role", "Month", "Working Days", "Days Present", "Attendance %", "Total Hours", "Avg Hrs/Day", "On-Time Days", "Late Days", "Undertime Days", "Overtime Days", "Longest Streak", "Most Absent Day"];
+    const headers = ["Employee ID", "Employee Name", "Department", "Role", "Month", "Working Days", "Days Present", "Attendance %", "Total Hours", "Avg Hrs/Day", "On-Time Days", "Late Days", "Undertime Days", "Overtime Days", "Longest Streak"];
     const rows = reportData.map((r) => [
       `"${r.id}"`, `"${r.name}"`, `"${r.department}"`, `"${r.role}"`, `"${selectedMonthLabel}"`,
       r.workingDays, r.daysPresent, r.attendanceRate, r.totalHours, r.avgHoursPerDay,
-      r.onTimeDays, r.lateDays, r.undertimeDays, r.overtimeDays, r.longestStreak, `"${r.mostAbsentDow}"`,
+      r.onTimeDays, r.lateDays, r.undertimeDays, r.overtimeDays, r.longestStreak,
     ].join(","));
     const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -310,7 +278,7 @@ export function ReportsView() {
             <div className="grid size-9 place-items-center rounded-xl bg-violet-500/10 text-violet-600"><Clock className="size-4" /></div>
           </div>
           <p className="text-2xl font-bold text-violet-600 dark:text-violet-400 mt-2">{totalHoursAcrossTeam.toFixed(0)}h</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Hours logged in {selectedMonthLabel}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Logged in {selectedMonthLabel}</p>
         </div>
       </div>
 
@@ -345,7 +313,6 @@ export function ReportsView() {
             ) : (
               filteredRows.map((row) => (
                 <TableRow key={row.id} className="transition-colors hover:bg-muted/30">
-                  {/* Employee */}
                   <TableCell className="pl-6 py-4">
                     <div className="flex items-center gap-3">
                       {row.avatarUrl ? (
@@ -362,13 +329,11 @@ export function ReportsView() {
                     </div>
                   </TableCell>
 
-                  {/* Department */}
                   <TableCell className="py-4">
                     <Badge variant="outline" className="text-xs rounded-md px-2 py-0.5 mb-1">{row.department}</Badge>
                     <p className="text-xs text-muted-foreground">{row.role}</p>
                   </TableCell>
 
-                  {/* Attendance rate */}
                   <TableCell className="text-center py-4">
                     <div className="flex flex-col items-center gap-1 min-w-[80px]">
                       <span className={cn("text-sm font-bold", row.attendanceRate >= 80 ? "text-emerald-600 dark:text-emerald-400" : row.attendanceRate >= 60 ? "text-amber-500" : "text-red-500")}>
@@ -379,13 +344,11 @@ export function ReportsView() {
                     </div>
                   </TableCell>
 
-                  {/* Hours */}
                   <TableCell className="text-center py-4">
                     <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{row.totalHours.toFixed(1)}h</span>
                     <p className="text-[10px] text-muted-foreground">{row.avgHoursPerDay}h/day avg</p>
                   </TableCell>
 
-                  {/* Punctuality */}
                   <TableCell className="text-center py-4">
                     <div className="flex flex-col items-center gap-0.5">
                       <div className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
@@ -397,33 +360,28 @@ export function ReportsView() {
                     </div>
                   </TableCell>
 
-                  {/* Streak */}
                   <TableCell className="text-center py-4">
                     <span className="text-sm font-bold text-primary">{row.longestStreak}d</span>
                     <p className="text-[10px] text-muted-foreground">best streak</p>
                   </TableCell>
 
-                  {/* Flags */}
                   <TableCell className="text-center py-4">
-                    <div className="flex flex-col items-center gap-0.5">
-                      {row.undertimeDays > 0 && (
-                        <span className="text-[10px] text-amber-500 font-medium flex items-center gap-1">
-                          <AlertTriangle className="size-2.5" /> {row.undertimeDays} undertime
-                        </span>
-                      )}
-                      {row.overtimeDays > 0 && (
-                        <span className="text-[10px] text-violet-500 font-medium">{row.overtimeDays} overtime</span>
-                      )}
-                      {row.mostAbsentDow !== "—" && (
-                        <span className="text-[10px] text-muted-foreground">misses {row.mostAbsentDow}s</span>
-                      )}
-                      {row.undertimeDays === 0 && row.overtimeDays === 0 && row.mostAbsentDow === "—" && (
-                        <span className="text-[10px] text-muted-foreground">—</span>
-                      )}
-                    </div>
+                    {row.undertimeDays === 0 && row.overtimeDays === 0 ? (
+                      <span className="text-[10px] text-muted-foreground">—</span>
+                    ) : (
+                      <div className="flex flex-col items-center gap-0.5">
+                        {row.undertimeDays > 0 && (
+                          <span className="text-[10px] text-amber-500 font-medium flex items-center gap-1">
+                            <AlertTriangle className="size-2.5" /> {row.undertimeDays} undertime
+                          </span>
+                        )}
+                        {row.overtimeDays > 0 && (
+                          <span className="text-[10px] text-violet-500 font-medium">{row.overtimeDays} overtime</span>
+                        )}
+                      </div>
+                    )}
                   </TableCell>
 
-                  {/* Drill-down */}
                   <TableCell className="pr-6 text-right py-4">
                     <Button size="sm" variant="ghost" className="rounded-lg text-xs gap-1" onClick={() => setSelectedEmp(row)}>
                       View <ChevronRight className="size-3" />
@@ -457,7 +415,6 @@ export function ReportsView() {
                 </DialogTitle>
               </DialogHeader>
 
-              {/* Summary analytics */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
                 {[
                   { label: "Attendance", value: `${selectedEmp.attendanceRate}%`, sub: `${selectedEmp.daysPresent}/${selectedEmp.workingDays} days`, color: selectedEmp.attendanceRate >= 80 ? "text-emerald-600" : "text-amber-500" },
@@ -473,16 +430,13 @@ export function ReportsView() {
                 ))}
               </div>
 
-              {/* Flag summary */}
-              {(selectedEmp.undertimeDays > 0 || selectedEmp.overtimeDays > 0 || selectedEmp.mostAbsentDow !== "—") && (
+              {(selectedEmp.undertimeDays > 0 || selectedEmp.overtimeDays > 0) && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-3 flex flex-wrap gap-3 text-xs">
                   {selectedEmp.undertimeDays > 0 && <span className="text-amber-700 dark:text-amber-400 font-medium">⚠ {selectedEmp.undertimeDays} day(s) worked under 7h</span>}
-                  {selectedEmp.overtimeDays > 0 && <span className="text-violet-600 font-medium">🕐 {selectedEmp.overtimeDays} overtime day(s) (&gt;9h)</span>}
-                  {selectedEmp.mostAbsentDow !== "—" && <span className="text-muted-foreground">Most absent on {selectedEmp.mostAbsentDow}s</span>}
+                  {selectedEmp.overtimeDays > 0 && <span className="text-violet-600 font-medium">🕐 {selectedEmp.overtimeDays} overtime day(s) (over 9h)</span>}
                 </div>
               )}
 
-              {/* Daily log table */}
               <div className="mt-2">
                 <h4 className="text-sm font-semibold mb-3">Daily Logs</h4>
                 {selectedEmp.dailyLogs.length === 0 ? (
@@ -503,7 +457,12 @@ export function ReportsView() {
                         {selectedEmp.dailyLogs.map((log, i) => (
                           <TableRow key={i} className="hover:bg-muted/30">
                             <TableCell className="text-xs tabular-nums font-medium">{log.date}</TableCell>
-                            <TableCell className={cn("text-xs tabular-nums", log.clockIn !== "—" && (() => { const [h, m] = log.clockIn.replace(/\s*(AM|PM)/i, "").split(":").map(Number); const mins = h * 60 + m; return mins > 9 * 60 + 30 ? "text-amber-500 font-semibold" : ""; })())}>
+                            <TableCell className={cn("text-xs tabular-nums", (() => {
+                                if (log.clockIn === "—") return "";
+                                const cleaned = log.clockIn.replace(/\s*(AM|PM)/i, "");
+                                const [h, m] = cleaned.split(":").map(Number);
+                                return (h * 60 + m) > 9 * 60 + 30 ? "text-amber-500 font-semibold" : "";
+                              })())}>
                               {log.clockIn}
                             </TableCell>
                             <TableCell className="text-xs tabular-nums">{log.clockOut}</TableCell>

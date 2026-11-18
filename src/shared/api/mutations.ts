@@ -241,7 +241,7 @@ export const useApplyLeave = () => {
       const { id: _id, ...insertPayload } = leaveRequest;
       const { data, error } = await supabase
         .from('leave_requests')
-        .insert([insertPayload])
+        .insert([{ ...insertPayload, id: crypto.randomUUID() }])
         .select();
 
       if (error) throw new Error(error.message);

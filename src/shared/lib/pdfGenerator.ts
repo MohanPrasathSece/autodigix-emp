@@ -380,7 +380,7 @@ export function generatePayslipPDFBase64(data: PayslipPDFData): string {
   doc.setFontSize(7.5);
   doc.setTextColor(...slate);
   doc.text(
-    'This is an official monthly salary statement. For discrepancies contact HR at Info@autodigix.in',
+    'This is an official monthly salary statement. For discrepancies contact HR at info@autodigix.com',
     MARGIN + 5, y + 13
   );
 

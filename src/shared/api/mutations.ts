@@ -273,7 +273,7 @@ export const useApplyLeave = () => {
       serverLog('Leave Request Applied', { employee_id: variables.employee_id, type: variables.type, days: variables.days }, 'success');
 
       sendEmail(
-        "Info@autodigix.in",
+        "info@autodigix.com",
         `New Leave Application: ${variables.name} (${variables.type})`,
         `Hi Admin,\n\n${variables.name} has applied for ${variables.days} day(s) of ${variables.type} (${variables.from_date} to ${variables.to_date}).\n\nSubject: ${variables.subject}\nReason: ${variables.description}\n\nPlease review and approve/reject this in the Admin Portal.`,
         `

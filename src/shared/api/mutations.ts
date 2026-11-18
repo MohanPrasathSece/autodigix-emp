@@ -215,7 +215,7 @@ export const useApplyLeave = () => {
 
   return useMutation({
     mutationFn: async (leaveRequest: {
-      id: string;
+      id?: string;
       employee_id: string;
       name: string;
       type: string;
@@ -238,9 +238,10 @@ export const useApplyLeave = () => {
         throw new Error("End date cannot be before start date.");
       }
 
+      const { id: _id, ...insertPayload } = leaveRequest;
       const { data, error } = await supabase
         .from('leave_requests')
-        .insert([leaveRequest])
+        .insert([insertPayload])
         .select();
 
       if (error) throw new Error(error.message);

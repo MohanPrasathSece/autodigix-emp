@@ -147,7 +147,6 @@ export function LeavePage() {
 
     applyLeaveMutation.mutate(
       {
-        id: "",
         employee_id: user.id,
         name: user.name,
         type: displayType,

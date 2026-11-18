@@ -1,11 +1,10 @@
-import { Wallet, Download, TrendingUp, Banknote, RefreshCw } from "lucide-react";
+import { Wallet, Download, TrendingUp, Banknote } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePayslips, usePayrollTrend, useEmployees } from "@/shared/api/queries";
-import { useRunPayroll } from "@/shared/api/mutations";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { cn } from "@/lib/utils";
@@ -24,7 +23,6 @@ export function PayrollPage() {
   const { data: payslips = [] } = usePayslips();
   const { data: payrollTrend = [] } = usePayrollTrend();
   const { data: employees = [] } = useEmployees();
-  const runPayroll = useRunPayroll();
 
   // Chronologically latest period — parse "MMM YYYY" instead of trusting array order.
   const distinctPeriods = Array.from(new Set(payslips.map((p: any) => p.period).filter(Boolean)))
@@ -52,18 +50,6 @@ export function PayrollPage() {
   const totalDeductions = totalTax + totalBenefits + totalUnpaidLeave;
 
   const ytdEarnings = payslips.reduce((s: number, x: any) => s + (Number(x.gross) || 0), 0);
-
-  // Run Payroll targets the current real month; the data layer also guards against re-running.
-  const runPeriod = new Date().toLocaleString("default", { month: "short", year: "numeric" });
-  const runPeriodProcessed = payslips.some((p: any) => p.period === runPeriod);
-
-  const handleRunPayroll = () => {
-    if (runPeriodProcessed) {
-      toast.info(`Payroll for ${runPeriod} has already been processed.`);
-      return;
-    }
-    runPayroll.mutate(runPeriod);
-  };
 
   const handleExportCSV = () => {
     if (payslips.length === 0) {
@@ -113,18 +99,9 @@ export function PayrollPage() {
     <div className="space-y-6">
       <PageHeader
         title="Payroll"
-        description="Company compensation, payslips, and history."
+        description="Company compensation, payslips, and history. Payroll runs automatically at month end."
         actions={
           <div className="flex gap-2">
-            <Button
-              className="rounded-xl"
-              onClick={handleRunPayroll}
-              disabled={runPayroll.isPending || runPeriodProcessed}
-              title={runPeriodProcessed ? `Payroll for ${runPeriod} already processed` : `Run payroll for ${runPeriod}`}
-            >
-              <RefreshCw className={cn("mr-1.5 size-4", runPayroll.isPending && "animate-spin")} />
-              {runPayroll.isPending ? "Processing..." : `Run Payroll (${runPeriod})`}
-            </Button>
             <Button variant="outline" className="rounded-xl" onClick={handleExportCSV}>
               <Download className="mr-1.5 size-4" />Export Log
             </Button>
@@ -253,7 +230,7 @@ export function PayrollPage() {
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
                   {distinctPeriods.length === 0
-                    ? "No payslips found in the system. Run payroll to generate them."
+                    ? "No payslips found. Payroll is processed automatically at month end."
                     : `No payslips for ${activePeriod}.`}
                 </TableCell>
               </TableRow>

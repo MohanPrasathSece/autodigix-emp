@@ -198,8 +198,29 @@ export const useAddEmployee = () => {
 
       sendEmail(
         variables.email,
-        "Welcome to Autodigix",
-        `Hi ${variables.name},\n\nWelcome to the team! Your portal account has been created.\nYour temporary password is: ${variables.tempPassword || variables.password}\n\nPlease log in and change it immediately.`
+        "Welcome to Autodigix — Your Portal Access",
+        `Hi ${variables.name},\n\nWelcome to the team! Your employee portal account has been created.\n\nPortal URL: https://autodigix-emp.vercel.app/\nLogin ID (Email): ${variables.email}\nTemporary Password: ${variables.tempPassword || variables.password}\n\nPlease log in and change your password immediately.\n\nIf you have any trouble, contact HR.`,
+        `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e2e8f0;border-radius:12px;background:#fff">
+          <div style="background:#1e293b;padding:24px;text-align:center;border-radius:8px 8px 0 0">
+            <h1 style="color:#fff;margin:0;font-size:22px">Welcome to Autodigix</h1>
+            <p style="color:#94a3b8;margin:6px 0 0;font-size:13px">Your employee portal is ready</p>
+          </div>
+          <div style="padding:28px;color:#334155;line-height:1.7">
+            <p style="font-size:16px;font-weight:bold;margin-top:0">Hi ${variables.name},</p>
+            <p>Welcome to the team! Your Autodigix HR portal account has been set up. Use the details below to log in.</p>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin:20px 0">
+              <table style="width:100%;font-size:14px;border-collapse:collapse">
+                <tr><td style="padding:8px 0;color:#64748b;width:40%">Portal URL</td><td style="padding:8px 0;font-weight:bold"><a href="https://autodigix-emp.vercel.app/" style="color:#2563eb;text-decoration:none">https://autodigix-emp.vercel.app/</a></td></tr>
+                <tr style="border-top:1px solid #e2e8f0"><td style="padding:8px 0;color:#64748b">Login ID (Email)</td><td style="padding:8px 0;font-weight:bold">${variables.email}</td></tr>
+                <tr style="border-top:1px solid #e2e8f0"><td style="padding:8px 0;color:#64748b">Temporary Password</td><td style="padding:8px 0;font-weight:bold;font-family:monospace;letter-spacing:1px">${variables.tempPassword || variables.password}</td></tr>
+              </table>
+            </div>
+            <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;font-size:13px;color:#92400e;margin-bottom:20px">⚠️ <strong>Please log in and change your password immediately.</strong></div>
+            <a href="https://autodigix-emp.vercel.app/" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">Log In to Portal →</a>
+            <hr style="border:0;border-top:1px solid #e2e8f0;margin:28px 0"/>
+            <p style="font-size:12px;color:#94a3b8;text-align:center;margin:0">For login issues, contact your HR administrator.<br/>Autodigix HR Management System</p>
+          </div>
+        </div>`
       );
     },
     onError: (error, variables) => {
@@ -343,9 +364,33 @@ export const useUpdateAttendance = () => {
 
 export const useLogAttendance = () => {
   const queryClient = useQueryClient();
+
+  const syncToSheets = async (payload: {
+    employeeId: string;
+    employeeName: string;
+    date: string;
+    loginTime?: string;
+    logoutTime?: string;
+    totalHours?: number;
+    status: string;
+  }) => {
+    const webhookUrl = import.meta.env.VITE_GOOGLE_SHEETS_WEBHOOK_URL;
+    if (!webhookUrl) return;
+    try {
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' }, // GAS requires text/plain for no-cors
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      console.warn('[Sheets sync] Failed to sync attendance:', err);
+    }
+  };
+
   return useMutation({
     mutationFn: async ({ employee_id, action, hours = 0, timestamp, employee_name }: { employee_id: string; action: 'Clock In' | 'Clock Out'; hours?: number; timestamp?: string; employee_name?: string }) => {
       const today = getLocalToday();
+      const clockTime = timestamp || new Date().toISOString();
 
       if (action === 'Clock In') {
         // Check if already clocked in today
@@ -365,16 +410,54 @@ export const useLogAttendance = () => {
           employee_id,
           hours: 0,
           status: 'Clocked In',
-          clock_in_time: timestamp || new Date().toISOString()
+          clock_in_time: clockTime
         }]);
         if (error) throw new Error(error.message);
+
+        // Sync to Google Sheets
+        await syncToSheets({
+          employeeId: employee_id,
+          employeeName: employee_name || employee_id,
+          date: today,
+          loginTime: new Date(clockTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          status: 'Clocked In',
+        });
+
       } else {
+        const clockOutTime = clockTime;
         const { error } = await supabase.from('attendance_history').update({
           hours,
           status: 'Clocked Out',
-          clock_out_time: timestamp || new Date().toISOString()
+          clock_out_time: clockOutTime
         }).eq('employee_id', employee_id).eq('date', today);
         if (error) throw new Error(error.message);
+
+        // Fetch clock_in_time to compute accurate total hours
+        const { data: record } = await supabase
+          .from('attendance_history')
+          .select('clock_in_time')
+          .eq('employee_id', employee_id)
+          .eq('date', today)
+          .maybeSingle();
+
+        let totalHours = hours;
+        let loginTimeStr = '';
+        if (record?.clock_in_time) {
+          loginTimeStr = new Date(record.clock_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const diffMs = new Date(clockOutTime).getTime() - new Date(record.clock_in_time).getTime();
+          totalHours = Math.round((diffMs / 3_600_000) * 100) / 100;
+        }
+
+        // Sync to Google Sheets
+        await syncToSheets({
+          employeeId: employee_id,
+          employeeName: employee_name || employee_id,
+          date: today,
+          loginTime: loginTimeStr,
+          logoutTime: new Date(clockOutTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          totalHours,
+          status: 'Clocked Out',
+        });
       }
     },
     onSuccess: () => {
@@ -493,7 +576,7 @@ export const useRunPayroll = () => {
 
     const gross = base_amount + allowances_amount - unpaid_leave_amount;
     const benefits_amount = emp.monthly_benefits_deduction || 0;
-    const tax_amount = Math.round(gross * 0.25); // 25% tax bracket assumption
+    const tax_amount = 0;
     const net = gross - tax_amount - benefits_amount;
 
     return {

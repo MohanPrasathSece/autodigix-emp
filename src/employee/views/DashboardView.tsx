@@ -187,21 +187,32 @@ export function EmployeeDashboard() {
             <span className="text-xs text-muted-foreground">Next 60 days</span>
           </div>
           <ul className="divide-y">
-            {holidays.length === 0 ? (
-               <div className="py-4 text-center text-sm text-muted-foreground">No upcoming holidays.</div>
-            ) : (
-              holidays.map((h: any) => (
-                <li key={h.name} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                  <div>
-                    <div className="text-sm font-medium">{h.name}</div>
-                    <div className="text-xs text-muted-foreground">{formatLeaveDate(h.date)}</div>
-                  </div>
-                  <div className="rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                    Public
-                  </div>
-                </li>
-              ))
-            )}
+            {(() => {
+              const today = new Date();
+              const sixtyDaysFromNow = new Date(today);
+              sixtyDaysFromNow.setDate(sixtyDaysFromNow.getDate() + 60);
+              
+              const upcomingHolidays = holidays.filter((h: any) => {
+                const holidayDate = new Date(h.date);
+                return holidayDate >= today && holidayDate <= sixtyDaysFromNow;
+              });
+              
+              return upcomingHolidays.length === 0 ? (
+                <div className="py-4 text-center text-sm text-muted-foreground">No upcoming holidays.</div>
+              ) : (
+                upcomingHolidays.map((h: any) => (
+                  <li key={h.name} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                    <div>
+                      <div className="text-sm font-medium">{h.name}</div>
+                      <div className="text-xs text-muted-foreground">{formatLeaveDate(h.date)}</div>
+                    </div>
+                    <div className="rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                      Public
+                    </div>
+                  </li>
+                ))
+              );
+            })()}
           </ul>
         </div>
 

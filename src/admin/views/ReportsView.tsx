@@ -12,6 +12,11 @@ import { Download, Search, Calendar, Clock, UserCheck, Users, TrendingUp, AlertT
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { eachDayOfInterval, startOfMonth, endOfMonth, isWeekend, format } from "date-fns";
+import {
+  PieChart, Pie, Cell, Tooltip as RTooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
+  LineChart, Line
+} from "recharts";
 
 function getWorkingDaysInMonth(yearMonth: string): number {
   const [year, month] = yearMonth.split("-").map(Number);
@@ -61,8 +66,9 @@ export function ReportsView() {
   const monthOptions = useMemo(() => {
     const list = [];
     const now = new Date();
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    // Show only current month + next 12 months (future months only)
+    for (let i = 0; i <= 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
       list.push({ value: val, label });
@@ -74,6 +80,16 @@ export function ReportsView() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const workingDays = useMemo(() => getWorkingDaysInMonth(selectedMonth), [selectedMonth]);
+
+  // Working days elapsed so far in the selected month (up to today)
+  const workingDaysElapsed = useMemo(() => {
+    const [year, month] = selectedMonth.split("-").map(Number);
+    const start = startOfMonth(new Date(year, month - 1));
+    const today = new Date();
+    const end = today < endOfMonth(new Date(year, month - 1)) ? today : endOfMonth(new Date(year, month - 1));
+    if (start > today) return 0;
+    return eachDayOfInterval({ start, end }).filter((d) => !isWeekend(d)).length;
+  }, [selectedMonth]);
 
   const reportData = useMemo<EmployeeReport[]>(() => {
     if (!selectedMonth) return [];
@@ -113,8 +129,8 @@ export function ReportsView() {
       empLogs.forEach((h: any) => {
         if (h.status !== "Clocked Out") return;
         const hrs = Number(h.hours) || 0;
-        if (hrs > 0 && hrs < 7) undertimeDays++;
-        if (hrs > 9) overtimeDays++;
+        if (hrs > 0 && hrs < 8) undertimeDays++;
+        if (hrs > 10) overtimeDays++;
       });
 
       // Longest streak
@@ -140,7 +156,7 @@ export function ReportsView() {
       // Daily logs
       const dailyLogs = empLogs
         .filter((h: any) => h.date)
-        .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)))
+        .sort((a: any, b: any) => String(b.date).localeCompare(String(a.date)))
         .map((h: any) => {
           const fmtTime = (val?: string) => {
             if (!val) return "—";
@@ -192,7 +208,6 @@ export function ReportsView() {
     );
   }, [reportData, searchQuery]);
 
-  const totalDaysAcrossTeam = useMemo(() => reportData.reduce((acc, r) => acc + r.daysPresent, 0), [reportData]);
   const totalHoursAcrossTeam = useMemo(() => Math.round(reportData.reduce((acc, r) => acc + r.totalHours, 0) * 10) / 10, [reportData]);
   const avgAttendanceRate = useMemo(() => {
     if (reportData.length === 0) return 0;
@@ -216,6 +231,54 @@ export function ReportsView() {
     URL.revokeObjectURL(url);
     toast.success("Attendance report exported.");
   };
+
+  // --- Charts data ---
+
+  // 1. Pie: attendance rate per employee (Present days vs Absent days)
+  const pieData = useMemo(() => {
+    return reportData.map((r) => ({
+      name: r.name,
+      present: r.daysPresent,
+      absent: Math.max(0, workingDaysElapsed - r.daysPresent),
+    }));
+  }, [reportData, workingDaysElapsed]);
+
+  // 2. Bar: total hours per employee
+  const hoursBarData = useMemo(() => {
+    return reportData.map((r) => ({
+      name: r.name,
+      hours: r.totalHours,
+      expected: workingDaysElapsed * 9,
+    }));
+  }, [reportData, workingDaysElapsed]);
+
+  // 3. Line: daily avg clock-in time (minutes after midnight) across the month
+  const clockInLineData = useMemo(() => {
+    const [year, month] = selectedMonth.split("-").map(Number);
+    const monthDays = eachDayOfInterval({
+      start: startOfMonth(new Date(year, month - 1)),
+      end: endOfMonth(new Date(year, month - 1)),
+    }).filter((d) => !isWeekend(d));
+
+    return monthDays.map((day) => {
+      const dateStr = format(day, "yyyy-MM-dd");
+      const logsForDay = (attendanceHistory as any[]).filter(
+        (h: any) => String(h.date).slice(0, 10) === dateStr && h.clock_in_time
+      );
+      const times = logsForDay.map((h: any) => {
+        const d = new Date(h.clock_in_time);
+        return isNaN(d.getTime()) ? null : d.getHours() * 60 + d.getMinutes();
+      }).filter((v): v is number => v !== null);
+
+      const avg = times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : null;
+      const label = format(day, "dd MMM");
+      const display = avg !== null ? `${Math.floor(avg / 60)}:${String(avg % 60).padStart(2, "0")}` : null;
+      return { date: label, avgMinutes: avg, display };
+    });
+  }, [attendanceHistory, selectedMonth]);
+
+  const PIE_COLORS = ["#10b981", "#f59e0b", "#3b82f6", "#8b5cf6", "#ef4444", "#06b6d4"];
+  const ABSENT_COLOR = "#fca5a5";
 
   const isLoading = empLoading || attLoading;
 
@@ -266,11 +329,13 @@ export function ReportsView() {
         </div>
         <div className="rounded-2xl border bg-card p-5 shadow-soft">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Days Logged</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Working Days</p>
             <div className="grid size-9 place-items-center rounded-xl bg-blue-500/10 text-blue-600"><UserCheck className="size-4" /></div>
           </div>
-          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-2">{totalDaysAcrossTeam}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Across entire team</p>
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-2">
+            {workingDaysElapsed} <span className="text-base font-normal text-muted-foreground">/ {workingDays}</span>
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">Days elapsed this month</p>
         </div>
         <div className="rounded-2xl border bg-card p-5 shadow-soft">
           <div className="flex items-center justify-between">
@@ -394,6 +459,98 @@ export function ReportsView() {
         </Table>
       </div>
 
+      {/* ── Charts Section ── */}
+      {reportData.length > 0 && (
+        <div className="space-y-6">
+          <h2 className="text-base font-semibold">Visual Analytics — {selectedMonthLabel}</h2>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+
+            {/* Pie: Attendance breakdown per employee */}
+            <div className="rounded-2xl border bg-card p-6 shadow-soft">
+              <h3 className="text-sm font-semibold mb-1">Attendance Breakdown</h3>
+              <p className="text-xs text-muted-foreground mb-4">Present vs absent days per employee (out of {workingDaysElapsed} elapsed days)</p>
+              <div className="flex flex-wrap gap-6 items-center justify-center">
+                {reportData.map((emp, i) => {
+                  const present = emp.daysPresent;
+                  const absent = Math.max(0, workingDaysElapsed - present);
+                  const total = present + absent;
+                  const data = [
+                    { name: "Present", value: present },
+                    { name: "Absent", value: absent },
+                  ];
+                  return (
+                    <div key={emp.id} className="flex flex-col items-center gap-1">
+                      <ResponsiveContainer width={100} height={100}>
+                        <PieChart>
+                          <Pie data={data} cx="50%" cy="50%" innerRadius={28} outerRadius={42} dataKey="value" strokeWidth={0}>
+                            <Cell fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                            <Cell fill={ABSENT_COLOR} />
+                          </Pie>
+                          <RTooltip formatter={(v: any, n: any) => [`${v} days`, n]} contentStyle={{ borderRadius: 8, fontSize: 11 }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <p className="text-xs font-semibold text-center leading-tight">{emp.name}</p>
+                      <p className="text-[10px] text-emerald-600 font-medium">{present}/{total} days</p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-center gap-6 mt-4 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-emerald-500 inline-block" /> Present</span>
+                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-red-300 inline-block" /> Absent</span>
+              </div>
+            </div>
+
+            {/* Bar: Hours worked per employee vs expected */}
+            <div className="rounded-2xl border bg-card p-6 shadow-soft">
+              <h3 className="text-sm font-semibold mb-1">Hours Worked This Month</h3>
+              <p className="text-xs text-muted-foreground mb-4">Actual hours logged vs expected ({workingDaysElapsed * 9}h)</p>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={hoursBarData} barGap={4} barCategoryGap="30%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis fontSize={11} tickLine={false} axisLine={false} unit="h" />
+                  <RTooltip formatter={(v: any, n: any) => [`${v}h`, n === "hours" ? "Logged" : "Expected"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="expected" name="Expected" fill="var(--muted)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="hours" name="Logged" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                    {hoursBarData.map((entry, i) => (
+                      <Cell key={i} fill={entry.hours >= entry.expected ? "#10b981" : entry.hours >= entry.expected * 0.8 ? "#f59e0b" : "#ef4444"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Line: Daily avg clock-in time */}
+          <div className="rounded-2xl border bg-card p-6 shadow-soft">
+            <h3 className="text-sm font-semibold mb-1">Daily Avg Clock-In Time</h3>
+            <p className="text-xs text-muted-foreground mb-4">Average team clock-in time per working day · dashed line = 09:30 cutoff</p>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={clockInLineData.filter(d => d.avgMinutes !== null)}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis
+                  fontSize={10} tickLine={false} axisLine={false}
+                  domain={[480, 660]}
+                  tickFormatter={(v) => `${Math.floor(v / 60)}:${String(v % 60).padStart(2, "0")}`}
+                />
+                <RTooltip
+                  formatter={(v: any) => [`${Math.floor(v / 60)}:${String(v % 60).padStart(2, "0")}`, "Avg Clock-In"]}
+                  contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                />
+                {/* 09:30 reference line at 570 minutes */}
+                <Line type="monotone" dataKey={() => 570} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1.5} dot={false} name="09:30 cutoff" />
+                <Line type="monotone" dataKey="avgMinutes" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: "#3b82f6" }} name="Avg Clock-In" />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       {/* Employee Drill-Down Dialog */}
       <Dialog open={!!selectedEmp} onOpenChange={(open) => !open && setSelectedEmp(null)}>
         <DialogContent className="max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
@@ -432,8 +589,8 @@ export function ReportsView() {
 
               {(selectedEmp.undertimeDays > 0 || selectedEmp.overtimeDays > 0) && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-3 flex flex-wrap gap-3 text-xs">
-                  {selectedEmp.undertimeDays > 0 && <span className="text-amber-700 dark:text-amber-400 font-medium">⚠ {selectedEmp.undertimeDays} day(s) worked under 7h</span>}
-                  {selectedEmp.overtimeDays > 0 && <span className="text-violet-600 font-medium">🕐 {selectedEmp.overtimeDays} overtime day(s) (over 9h)</span>}
+                  {selectedEmp.undertimeDays > 0 && <span className="text-amber-700 dark:text-amber-400 font-medium">⚠ {selectedEmp.undertimeDays} day(s) worked under 8h</span>}
+                  {selectedEmp.overtimeDays > 0 && <span className="text-violet-600 font-medium">🕐 {selectedEmp.overtimeDays} overtime day(s) (over 10h)</span>}
                 </div>
               )}
 
@@ -466,7 +623,7 @@ export function ReportsView() {
                               {log.clockIn}
                             </TableCell>
                             <TableCell className="text-xs tabular-nums">{log.clockOut}</TableCell>
-                            <TableCell className={cn("text-xs tabular-nums text-right font-semibold", log.hours > 9 ? "text-violet-500" : log.hours < 7 && log.hours > 0 ? "text-amber-500" : "")}>
+                            <TableCell className={cn("text-xs tabular-nums text-right font-semibold", log.hours > 10 ? "text-violet-500" : log.hours < 8 && log.hours > 0 ? "text-amber-500" : "")}>
                               {log.hours > 0 ? `${log.hours.toFixed(2)}h` : "—"}
                             </TableCell>
                             <TableCell>

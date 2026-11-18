@@ -272,7 +272,7 @@ export function AttendancePage() {
   const [isConfirming, setIsConfirming] = useState(false);
   const [now, setNow] = useState(new Date());
 
-  const SHIFT_HOURS = 8; // Full shift duration in hours
+  const SHIFT_HOURS = 9; // Full shift duration in hours
 
   // Live clock — ticks every second
   useEffect(() => {

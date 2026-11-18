@@ -45,6 +45,7 @@ export function EmployeeDetailsView() {
     monthly_allowance: "0",
     monthly_benefits_deduction: "0",
     tax_percentage: "0",
+    monthly_lop_amount: "0",
   });
 
   useEffect(() => {
@@ -67,6 +68,7 @@ export function EmployeeDetailsView() {
         monthly_allowance: (emp.monthly_allowance || 0).toString(),
         monthly_benefits_deduction: (emp.monthly_benefits_deduction || 0).toString(),
         tax_percentage: (emp.tax_percentage ?? 0).toString(),
+        monthly_lop_amount: (emp.monthly_lop_amount || 0).toString(),
       });
     }
   }, [emp]);
@@ -95,6 +97,7 @@ export function EmployeeDetailsView() {
         monthly_allowance: Number(editForm.monthly_allowance || 0),
         monthly_benefits_deduction: Number(editForm.monthly_benefits_deduction || 0),
         tax_percentage: Number(editForm.tax_percentage || 0),
+        monthly_lop_amount: Number(editForm.monthly_lop_amount || 0),
       },
       {
         onSuccess: () => {
@@ -125,6 +128,7 @@ export function EmployeeDetailsView() {
         monthly_allowance: (emp.monthly_allowance || 0).toString(),
         monthly_benefits_deduction: (emp.monthly_benefits_deduction || 0).toString(),
         tax_percentage: (emp.tax_percentage ?? 0).toString(),
+        monthly_lop_amount: (emp.monthly_lop_amount || 0).toString(),
       });
     }
     setIsEditing(false);
@@ -533,6 +537,32 @@ export function EmployeeDetailsView() {
                       <p className="text-lg font-bold text-foreground">
                         {Number(emp.tax_percentage ?? 0)}%
                       </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground">Daily Loss of Pay (LOP) Amount</Label>
+                    {isEditing ? (
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                        <Input
+                          type="number"
+                          value={editForm.monthly_lop_amount}
+                          onChange={(e) => setEditForm({ ...editForm, monthly_lop_amount: e.target.value })}
+                          className="h-8 text-sm pl-6 font-semibold"
+                          placeholder="Per absent day"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <p className="text-lg font-bold text-red-500">
+                          ₹ {(emp.monthly_lop_amount || 0).toLocaleString('en-IN')}
+                        </p>
+                        <span className="text-xs text-muted-foreground">/day</span>
+                      </div>
+                    )}
+                    {isEditing && (
+                      <p className="text-xs text-muted-foreground mt-1">Deducted for each absent day during payroll</p>
                     )}
                   </div>
                 </div>

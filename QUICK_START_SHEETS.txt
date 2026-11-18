@@ -1,0 +1,90 @@
+═══════════════════════════════════════════════════════════════════════════════
+  GOOGLE SHEETS ATTENDANCE SYNC — QUICK START
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 DEPLOYMENT IN 5 STEPS:
+
+1. OPEN GOOGLE SHEET
+   → Open/create your Google Sheet for attendance
+
+2. OPEN APPS SCRIPT
+   → Click: Extensions → Apps Script
+   → Open in Apps Script editor
+
+3. PASTE CODE
+   → Delete existing code in "Code.gs"
+   → Copy & paste from: google-apps-script/attendance-sync.gs
+   → Click Save
+
+4. CREATE DEPLOYMENT
+   → Click: Deploy → New deployment
+   → Type: "Web app"
+   → Execute as: [Your account]
+   → Who has access: "Anyone"
+   → Click Deploy
+   → Copy the URL (looks like: https://script.google.com/macros/s/xxxxx/exec)
+
+5. UPDATE .ENV
+   → Add to .env file:
+   VITE_GOOGLE_SHEETS_WEBHOOK_URL="https://script.google.com/macros/s/xxxxx/exec"
+   → Replace xxxxx with your deployment ID
+   → Restart dev server / redeploy website
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📊 BACKFILL ATTENDANCE:
+
+1. Go to your Google Sheet
+2. Click: Custom → Backfill Attendance from Supabase
+3. Authorize if prompted
+4. Wait for: "✅ Backfill complete!"
+5. Check "Attendance" sheet for all November records
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🧪 TEST CONNECTION:
+
+1. Go to your Google Sheet
+2. Click: Custom → Test Webhook Connection
+3. You should see: "✅ Supabase connection OK"
+4. If error, check SUPABASE_URL and SUPABASE_KEY in script
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ WHAT YOU'LL GET:
+
+   Employee Name | Employee ID | Date | Login Time | Logout Time | Hours | Status
+   ──────────────┼─────────────┼──────┼────────────┼─────────────┼───────┼────────
+   John Doe      | EMP-001     | 18/11 | 09:30 AM  | 06:30 PM    | 9     | Clocked Out
+   Jane Smith    | EMP-002     | 18/11 | 09:32 AM  | 06:28 PM    | 9     | Clocked Out
+
+═══════════════════════════════════════════════════════════════════════════════
+
+💡 HOW IT WORKS:
+
+   • Real-time: Every clock-in/out automatically syncs to sheet
+   • Backfill: Bulk import of all existing November records
+   • Updates: Same employee + date = updates row (no duplicates)
+   • Read-only: Only reads from Supabase, never modifies it
+
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️ COMMON ISSUES:
+
+Problem: "Connection failed"
+→ Check SUPABASE_URL and SUPABASE_KEY in script are correct
+
+Problem: "Backfill shows 0 records"
+→ All records already in sheet (clear sheet and retry)
+
+Problem: "Webhook URL not working"
+→ Create NEW deployment (old deployments don't auto-update)
+
+Problem: "Authorization error"
+→ Click the ⚠️ warning icon → Authorize script
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📖 FULL GUIDE: See GOOGLE_SHEETS_SYNC_GUIDE.md for detailed instructions
+
+═══════════════════════════════════════════════════════════════════════════════

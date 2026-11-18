@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Users, UserCheck, PlaneTakeoff, Wallet, ChevronRight, FileSpreadsheet, PlusCircle, UserPlus, RefreshCw } from "lucide-react";
+import { Users, UserCheck, PlaneTakeoff, Wallet, ChevronRight, FileSpreadsheet, PlusCircle, UserPlus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
@@ -213,7 +213,7 @@ export function AdminDashboardView() {
         <StatCard label="Total Employees" value={totalEmployees.toString()} delta="" trend="up" icon={Users} hint="Active headcount" />
         <StatCard label="Today's Attendance" value={`${attendanceRate}%`} delta="" trend="up" icon={UserCheck} hint={`${totalEmployees - onLeaveEmployees} / ${totalEmployees} Expected`} />
         <StatCard label="Pending Leaves" value={leaveRequests.filter((r: any) => r.status === "Pending").length.toString()} delta="Requires review" icon={PlaneTakeoff} hint="Urgent" />
-        <StatCard label="Monthly Payroll" value={`₹${(monthlyPayroll / 1000).toFixed(1)}k`} delta="Processed" trend="up" icon={Wallet} hint={latestPeriod} />
+        <StatCard label="Monthly Payroll" value={`₹0`} delta="Processed" trend="up" icon={Wallet} hint={latestPeriod} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -319,21 +319,6 @@ export function AdminDashboardView() {
           <div>
             <span className="block text-sm font-semibold">Onboard Employee</span>
             <span className="block text-xs text-muted-foreground mt-0.5">Send invite link</span>
-          </div>
-        </button>
-
-        {/* Run Payroll */}
-        <button
-          onClick={handleRunPayroll}
-          disabled={runPayroll.isPending}
-          className="group flex flex-col items-start gap-3 rounded-2xl border bg-card p-5 text-left transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg disabled:opacity-50"
-        >
-          <div className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
-            <RefreshCw className={`size-5 ${runPayroll.isPending ? 'animate-spin' : ''}`} />
-          </div>
-          <div>
-            <span className="block text-sm font-semibold">{runPayroll.isPending ? 'Processing...' : 'Run Payroll'}</span>
-            <span className="block text-xs text-muted-foreground mt-0.5">Process monthly cycle</span>
           </div>
         </button>
 

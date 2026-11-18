@@ -79,7 +79,7 @@ export async function checkAndProcessMonthEndPayroll(): Promise<{
     // 2. Fetch active staff employees (exclude terminated and super admin)
     const { data: rawEmployees, error: empErr } = await supabase
       .from('employees')
-      .select('id, name, email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction, payslip_email, tax_percentage')
+      .select('id, name, email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction, payslip_email, tax_percentage, monthly_lop_amount')
       .neq('status', 'Terminated');
 
     const employees = (rawEmployees || []).filter((e: any) =>
@@ -111,11 +111,14 @@ export async function checkAndProcessMonthEndPayroll(): Promise<{
         .reduce((acc: number, a: any) => acc + (String(a.subject).toLowerCase().includes('half day') ? 0.5 : 1), 0);
 
       if (unpaidDays > 0) {
-        const dailyRate = base_amount / 22;
+        const dailyRate = base_amount / 21;
         unpaid_leave_amount = Math.round(unpaidDays * dailyRate);
       }
 
-      const gross = base_amount + allowances_amount - unpaid_leave_amount;
+      // LOP amount entered by admin for this employee
+      const lop_amount = Number(emp.monthly_lop_amount) || 0;
+
+      const gross = base_amount + allowances_amount - unpaid_leave_amount - lop_amount;
       const benefits_amount = emp.monthly_benefits_deduction || 0;
       const taxRate = (emp.tax_percentage !== null && emp.tax_percentage !== undefined && !isNaN(emp.tax_percentage))
         ? Number(emp.tax_percentage) / 100
@@ -130,7 +133,7 @@ export async function checkAndProcessMonthEndPayroll(): Promise<{
         net,
         base_amount,
         allowances_amount,
-        unpaid_leave_amount,
+        unpaid_leave_amount: unpaid_leave_amount + lop_amount,
         tax_amount,
         benefits_amount,
         status: 'Paid',

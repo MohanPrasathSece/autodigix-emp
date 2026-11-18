@@ -237,8 +237,6 @@ export function ProfilePage() {
               <p className="text-sm text-muted-foreground">{employeeData.role} · {employeeData.department}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <Badge variant="outline" className="rounded-full border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-600 dark:text-emerald-400">Active</Badge>
-                <Badge variant="outline" className="rounded-full text-[11px]">Full-time</Badge>
-                <Badge variant="outline" className="rounded-full text-[11px]">3.4 yrs</Badge>
               </div>
             </div>
           </div>
@@ -299,16 +297,6 @@ export function ProfilePage() {
                     ) : (
                       <div className="truncate text-sm font-medium">{tempProfile.location}</div>
                     )}
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 rounded-xl border bg-background/60 p-4">
-                  <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                    <Building2 className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs text-muted-foreground">Office</div>
-                    <div className="truncate text-sm font-medium">SF HQ · Floor 4</div>
                   </div>
                 </div>
 

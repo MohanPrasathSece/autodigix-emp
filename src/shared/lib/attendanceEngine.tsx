@@ -55,9 +55,9 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
       for (const record of openRecords || []) {
         if (record.date === today) continue; // today's open session is handled below
         const clockInDate = new Date(record.clock_in_time || record.created_at);
-        const sevenPM = new Date(clockInDate);
-        sevenPM.setHours(19, 0, 0, 0);
-        const finalEndTime = sevenPM.getTime() < clockInDate.getTime() ? clockInDate.getTime() + 60000 : sevenPM.getTime();
+        const shiftEnd = new Date(clockInDate);
+        shiftEnd.setHours(18, 30, 0, 0);
+        const finalEndTime = shiftEnd.getTime() < clockInDate.getTime() ? clockInDate.getTime() + 60000 : shiftEnd.getTime();
         const sessionSeconds = Math.max(0, Math.floor((finalEndTime - clockInDate.getTime()) / 1000));
         const totalHours = Number((Math.max(0, Number(record.hours) || 0) + sessionSeconds / 3600).toFixed(2));
         await supabase.from('attendance_history').update({
@@ -79,12 +79,12 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
       if (todayRecord && todayRecord.status === 'Clocked In') {
         const sessionStart = new Date(todayRecord.clock_in_time || todayRecord.created_at).getTime();
         const base = Math.max(0, Math.floor((Number(todayRecord.hours) || 0) * 3600));
-        const sevenPM = new Date(sessionStart);
-        sevenPM.setHours(19, 0, 0, 0);
+        const shiftEnd = new Date(sessionStart);
+        shiftEnd.setHours(18, 30, 0, 0);
 
-        if (nowMs >= sevenPM.getTime()) {
-          // Active session ran past 7 PM — close it out.
-          const finalEndTime = sevenPM.getTime() < sessionStart ? sessionStart + 60000 : sevenPM.getTime();
+        if (nowMs >= shiftEnd.getTime()) {
+          // Active session ran past 6:30 PM — close it out.
+          const finalEndTime = shiftEnd.getTime() < sessionStart ? sessionStart + 60000 : shiftEnd.getTime();
           const sessionSeconds = Math.max(0, Math.floor((finalEndTime - sessionStart) / 1000));
           const totalHours = Number((Math.max(0, Number(todayRecord.hours) || 0) + sessionSeconds / 3600).toFixed(2));
           await supabase.from('attendance_history').update({
@@ -121,8 +121,8 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
   const startWork = async () => {
     if (!user?.id) return;
 
-    if (new Date().getHours() >= 19) {
-      toast.error("Shift Ended", { description: "Today's shift ended at 7:00 PM. Clock-in is closed for today." });
+    if (new Date().getHours() >= 19 || (new Date().getHours() === 18 && new Date().getMinutes() >= 30)) {
+      toast.error("Shift Ended", { description: "Today's shift ended at 6:30 PM. Clock-in is closed for today." });
       return;
     }
 
@@ -134,7 +134,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
 
     try {
       await logAttendanceMutation.mutateAsync({ employee_id: user.id, employee_name: user.name, action: 'Clock In' });
-      toast.success("Clocked In", { description: "Attendance started. You can pause and resume anytime before 7 PM." });
+      toast.success("Clocked In", { description: "Attendance started. You can pause and resume anytime before 6:30 PM." });
     } catch (e: any) {
       toast.error(e.message || "Failed to clock in");
       setIsWorking(false);
@@ -149,9 +149,9 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     let finalEndTime = Date.now();
 
     if (autoStopAt7) {
-      const sevenPM = new Date(clockInTime);
-      sevenPM.setHours(19, 0, 0, 0);
-      finalEndTime = sevenPM.getTime();
+      const shiftEnd = new Date(clockInTime);
+      shiftEnd.setHours(18, 30, 0, 0);
+      finalEndTime = shiftEnd.getTime();
     }
 
     if (finalEndTime < clockInTime) finalEndTime = clockInTime + 60000;
@@ -173,7 +173,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
       });
       setClockInTime(null);
       setBaseSeconds(totalSeconds);
-      toast.success("Clocked Out", { description: autoStopAt7 ? "Shift auto-ended at 7 PM." : "Paused — you can resume anytime before 7 PM." });
+      toast.success("Clocked Out", { description: autoStopAt7 ? "Shift auto-ended at 6:30 PM." : "Paused — you can resume anytime before 6:30 PM." });
     } catch (e: any) {
       toast.error(e.message || "Failed to clock out");
       setIsWorking(true);
@@ -186,7 +186,8 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
 
     const interval = setInterval(() => {
       const now = new Date();
-      if (now.getHours() >= 19) {
+      const isAfterShiftEnd = now.getHours() > 18 || (now.getHours() === 18 && now.getMinutes() >= 30);
+      if (isAfterShiftEnd) {
          if (!stoppingRef.current) {
            stoppingRef.current = true;
            stopWork(true).finally(() => { stoppingRef.current = false; });

@@ -536,7 +536,7 @@ export const useRunPayroll = () => {
       // 1. Fetch active employees (excluding super admin and terminated)
       const { data: rawEmployees, error: fetchError } = await supabase
         .from('employees')
-        .select('id, name, email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction, payslip_email, tax_percentage')
+        .select('id, name, email, department, role, status, base_salary, monthly_allowance, monthly_benefits_deduction, payslip_email, tax_percentage, monthly_lop_amount')
         .neq('status', 'Terminated');
 
       if (fetchError) throw new Error(fetchError.message);
@@ -553,7 +553,7 @@ export const useRunPayroll = () => {
         throw new Error("No active employees found to run payroll.");
       }
 
-  // 2. Fetch unpaid leaves for deductions
+  // 2. Fetch absent dates for unpaid leaves and LOP
   const { data: absentDates } = await supabase
     .from('absent_dates')
     .select('employee_id, subject');
@@ -563,18 +563,33 @@ export const useRunPayroll = () => {
     const salary = emp.base_salary || 60000;
     const base_amount = Math.round(salary / 12);
     const allowances_amount = emp.monthly_allowance || 0;
+    const dailyRate = base_amount / 21;
 
-    let unpaid_leave_amount = 0;
-    const unpaidDays = (absentDates || []).filter(a => a.employee_id === emp.id && a.subject.toLowerCase().includes('unpaid')).reduce((acc, a) => {
-      return acc + (a.subject.toLowerCase().includes('half day') ? 0.5 : 1);
-    }, 0);
+    // Count unpaid leave days (marked with 'unpaid' in subject)
+    let unpaidDays = 0;
+    (absentDates || []).forEach(a => {
+      if (a.employee_id === emp.id && a.subject.toLowerCase().includes('unpaid')) {
+        unpaidDays += a.subject.toLowerCase().includes('half day') ? 0.5 : 1;
+      }
+    });
 
-    if (unpaidDays > 0) {
-      const dailyRate = base_amount / 22;
-      unpaid_leave_amount = Math.round(unpaidDays * dailyRate);
-    }
+    // Count total absent days (for LOP calculation)
+    // LOP applies to all absences: unpaid leaves, sick leaves, personal leaves, etc.
+    let totalAbsentDays = 0;
+    (absentDates || []).forEach(a => {
+      if (a.employee_id === emp.id) {
+        totalAbsentDays += a.subject.toLowerCase().includes('half day') ? 0.5 : 1;
+      }
+    });
 
-    const gross = base_amount + allowances_amount - unpaid_leave_amount;
+    // Calculate unpaid leave deduction (only for unpaid leaves)
+    const unpaid_leave_amount = unpaidDays > 0 ? Math.round(unpaidDays * dailyRate) : 0;
+
+    // Calculate LOP deduction (daily_lop_amount × number of absent days)
+    const daily_lop_amount = Number(emp.monthly_lop_amount) || 0;
+    const lop_amount = totalAbsentDays > 0 ? Math.round(totalAbsentDays * daily_lop_amount) : 0;
+
+    const gross = base_amount + allowances_amount - unpaid_leave_amount - lop_amount;
     const benefits_amount = emp.monthly_benefits_deduction || 0;
     const tax_amount = 0;
     const net = gross - tax_amount - benefits_amount;
@@ -586,9 +601,10 @@ export const useRunPayroll = () => {
       net: net,
       base_amount: base_amount,
       allowances_amount: allowances_amount,
-      unpaid_leave_amount: unpaid_leave_amount,
+      unpaid_leave_amount: unpaid_leave_amount + lop_amount,
       tax_amount: tax_amount,
       benefits_amount: benefits_amount,
+      lop_days: totalAbsentDays,
       status: 'Paid'
     };
   });
@@ -716,6 +732,7 @@ export const useUpdateEmployee = () => {
       emergency_contact_phone: string;
       payslip_email: string;
       access_level: string;
+      monthly_lop_amount: number;
     }>) => {
       const { id, ...updates } = employee;
       if (!id) throw new Error("Employee ID is required");

@@ -302,20 +302,6 @@ export function ProfilePage() {
 
                 <div className="flex items-start gap-3 rounded-xl border bg-background/60 p-4">
                   <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                    <Briefcase className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs text-muted-foreground">Manager</div>
-                    {isEditing ? (
-                      <Input value={tempProfile.manager_id} onChange={e => setTempProfile({...tempProfile, manager_id: e.target.value})} className="h-7 text-sm px-2" placeholder="Manager ID" />
-                    ) : (
-                      <div className="truncate text-sm font-medium">{employeeData.manager_id || "Unassigned"}</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 rounded-xl border bg-background/60 p-4">
-                  <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                     <Calendar className="size-4" />
                   </div>
                   <div className="min-w-0">

@@ -36,6 +36,7 @@ import { EmployeeLeaveHistoryView } from "@/employee/views/LeaveHistoryView";
 import { EmployeePayslipsView } from "@/employee/views/PayslipsView";
 import { ProfilePage as EmployeeProfileView } from "@/employee/views/ProfileView";
 import { CalendarPage as EmployeeCalendarPage } from "@/employee/views/CalendarView";
+import { EmployeeAttendanceHistoryView } from "@/employee/views/AttendanceHistoryView";
 
 export function App() {
   return (
@@ -69,6 +70,7 @@ export function App() {
           <Route index element={<Navigate to="/employee/dashboard" replace />} />
           <Route path="dashboard" element={<EmployeeDashboard />} />
           <Route path="apply-leave" element={<LeavePage />} />
+          <Route path="attendance-history" element={<EmployeeAttendanceHistoryView />} />
           <Route path="leave-history" element={<EmployeeLeaveHistoryView />} />
           <Route path="payslips" element={<EmployeePayslipsView />} />
           <Route path="profile" element={<EmployeeProfileView />} />

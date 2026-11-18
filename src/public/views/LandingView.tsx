@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, ArrowRight, CheckCircle2, ShieldCheck, Clock, Users, Building2, Wallet, MessageSquare } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle2, Clock, PlaneTakeoff, Wallet, FileText, Users, CalendarCheck, MessageSquare, Building2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -138,7 +138,7 @@ export function LandingView() {
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
                 <div style="background-color: #1e293b; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
                   <h2 style="color: #ffffff; margin: 0; font-size: 20px;">New Support / Contact Inquiry</h2>
-                  <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;">Autodigix HR Landing Page</p>
+                  <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;">Autodigix CRM Landing Page</p>
                 </div>
                 <div style="padding: 24px; color: #334155; line-height: 1.6;">
                   <p style="margin-top: 0;"><strong>Sender Name:</strong> ${contactName}</p>
@@ -146,7 +146,7 @@ export function LandingView() {
                   <p><strong>Message:</strong></p>
                   <div style="background-color: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #3b82f6; white-space: pre-wrap; font-size: 14px; color: #0f172a;">${contactMessage}</div>
                   <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-                  <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">Autodigix HR System Notification</p>
+                  <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">Autodigix CRM System Notification</p>
                 </div>
               </div>
             `
@@ -204,20 +204,20 @@ export function LandingView() {
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="fixed top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-gray-100"
+        className="fixed top-0 z-50 w-full bg-white border-b border-blue-100 shadow-sm"
       >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-8">
           <div className="flex items-center gap-2 cursor-pointer font-semibold text-xl tracking-tight" onClick={() => window.scrollTo(0,0)}>
-            <div className="grid size-8 place-items-center rounded-lg bg-black text-white shadow-sm">
+            <div className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md">
               <Building2 className="size-4" />
             </div>
-            Autodigix HR
+            <span className="bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">Autodigix CRM</span>
           </div>
           <div className="flex items-center gap-6 text-sm font-medium">
-            <button onClick={() => scrollToSection('features')} className="text-gray-500 hover:text-black transition-colors hidden sm:block">Capabilities</button>
-            <button onClick={() => scrollToSection('how-it-works')} className="text-gray-500 hover:text-black transition-colors hidden sm:block">Platform</button>
-            <button onClick={() => scrollToSection('contact')} className="text-gray-500 hover:text-black transition-colors hidden sm:block">Contact</button>
-            <Button onClick={() => scrollToSection('login')} className="rounded-full bg-black text-white hover:bg-gray-800 px-6 font-medium">
+            <button onClick={() => scrollToSection('features')} className="text-gray-600 hover:text-blue-600 transition-colors hidden sm:block">Capabilities</button>
+            <button onClick={() => scrollToSection('how-it-works')} className="text-gray-600 hover:text-blue-600 transition-colors hidden sm:block">Platform</button>
+            <button onClick={() => scrollToSection('contact')} className="text-gray-600 hover:text-blue-600 transition-colors hidden sm:block">Contact</button>
+            <Button onClick={() => scrollToSection('login')} className="rounded-full bg-blue-600 text-white hover:bg-blue-700 px-6 font-medium shadow-md hover:shadow-lg transition-all">
               Sign In
             </Button>
           </div>
@@ -225,7 +225,7 @@ export function LandingView() {
       </motion.nav>
 
       {/* Hero Section */}
-      <main className="relative pt-32 pb-24 lg:pt-48 lg:pb-32">
+      <main className="relative pt-32 pb-24 lg:pt-48 lg:pb-32 bg-gradient-to-b from-blue-50 via-white to-white">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             
@@ -235,31 +235,31 @@ export function LandingView() {
               animate="show"
               className="max-w-2xl"
             >
-              <motion.h1 variants={fadeUp} className="text-5xl sm:text-6xl font-semibold tracking-tight mb-6 leading-[1.1]">
-                Your entire workforce, <br/>
-                <span className="text-gray-400 font-medium">managed in one place.</span>
+            <motion.h1 variants={fadeUp} className="text-5xl sm:text-6xl font-bold tracking-tight mb-6 leading-[1.1]">
+                Complete Workforce Management,<br/>
+                <span className="bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">simplified.</span>
               </motion.h1>
-              <motion.p variants={fadeUp} className="text-lg text-gray-500 mb-8 leading-relaxed font-normal">
-                Autodigix is a comprehensive HR platform connecting administrators and employees. Automate your payroll, track live attendance, and approve leave requests with zero friction.
+              <motion.p variants={fadeUp} className="text-lg text-gray-600 mb-8 leading-relaxed font-normal">
+                Autodigix CRM brings your entire workforce under one unified platform. Track attendance in real-time, manage leaves effortlessly, automate payroll, and empower employees with self-service access.
               </motion.p>
               
               <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-4">
-                <Button onClick={() => scrollToSection('login')} className="h-12 rounded-full bg-black text-white hover:bg-gray-800 px-8 text-base font-medium transition-transform hover:scale-105">
+                <Button onClick={() => scrollToSection('login')} className="h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:shadow-lg px-8 text-base font-medium transition-all hover:scale-105 shadow-md">
                   Access Portal
                   <ArrowRight className="ml-2 size-4" />
                 </Button>
-                <Button variant="outline" onClick={() => scrollToSection('features')} className="h-12 rounded-full px-8 text-base border-gray-200 font-medium transition-transform hover:scale-105">
+                <Button variant="outline" onClick={() => scrollToSection('features')} className="h-12 rounded-full px-8 text-base border-blue-200 text-blue-600 hover:bg-blue-50 font-medium transition-all hover:scale-105">
                   Explore Features
                 </Button>
               </motion.div>
 
-              <motion.div variants={fadeUp} className="mt-10 flex items-center gap-6 text-sm text-gray-500 font-medium">
+              <motion.div variants={fadeUp} className="mt-10 flex items-center gap-6 text-sm text-gray-600 font-medium">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="size-4 text-black" />
+                  <CheckCircle2 className="size-4 text-blue-600" />
                   Instant Syncing
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="size-4 text-black" />
+                  <CheckCircle2 className="size-4 text-blue-600" />
                   Automated Notifications
                 </div>
               </motion.div>
@@ -273,32 +273,34 @@ export function LandingView() {
               transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
               className="relative mx-auto w-full max-w-md lg:ml-auto"
             >
-              <div className="rounded-3xl border border-gray-100 bg-white p-8 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)]">
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-blue-400 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition"></div>
+              <div className="relative rounded-3xl border border-blue-200 bg-white p-8 shadow-xl">
                 <div className="mb-8">
-                  <h2 className="text-2xl font-semibold tracking-tight">Portal Login</h2>
-                  <p className="text-sm text-gray-500 mt-1 font-normal">For administrators and employees.</p>
+                  <div className="inline-block px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold mb-3">Secure Login</div>
+                  <h2 className="text-3xl font-bold text-gray-900">Portal Login</h2>
+                  <p className="text-sm text-gray-500 mt-2 font-normal">For administrators and employees</p>
                 </div>
 
                 <form className="space-y-5" onSubmit={handleLogin}>
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500">Work Email</Label>
+                    <Label className="text-xs font-semibold text-gray-700">WORK EMAIL</Label>
                     <Input 
                       type="email" 
                       placeholder="e.g. admin@company.com" 
                       value={email}
                       onChange={(e) => { setEmail(e.target.value); setLoginError(""); }}
-                      className="h-12 rounded-xl border-gray-200 bg-gray-50 focus-visible:ring-black font-normal transition-colors hover:border-gray-300"
+                      className="h-12 rounded-xl border-blue-200 bg-blue-50 focus-visible:ring-blue-500 focus:border-blue-500 font-normal transition-all hover:border-blue-300"
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-normal uppercase tracking-wider text-gray-500">Password</Label>
+                    <Label className="text-xs font-semibold text-gray-700">PASSWORD</Label>
                     <Input 
                       type="password" 
                       placeholder="••••••••" 
                       value={password}
                       onChange={(e) => { setPassword(e.target.value); setLoginError(""); }}
-                      className="h-12 rounded-xl border-gray-200 bg-gray-50 focus-visible:ring-black font-normal transition-colors hover:border-gray-300"
+                      className="h-12 rounded-xl border-blue-200 bg-blue-50 focus-visible:ring-blue-500 focus:border-blue-500 font-normal transition-all hover:border-blue-300"
                       required
                     />
                   </div>
@@ -307,7 +309,7 @@ export function LandingView() {
                     <motion.p 
                       initial={{ opacity: 0, y: -5 }} 
                       animate={{ opacity: 1, y: 0 }} 
-                      className="text-sm font-medium text-red-500 bg-red-50 p-3 rounded-lg border border-red-100"
+                      className="text-sm font-medium text-red-600 bg-red-50 p-3 rounded-lg border border-red-200"
                     >
                       {loginError}
                     </motion.p>
@@ -316,11 +318,15 @@ export function LandingView() {
                   <Button 
                     type="submit" 
                     disabled={isLoading}
-                    className="w-full h-12 rounded-xl bg-black text-white hover:bg-gray-800 transition-all mt-4 font-medium"
+                    className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:shadow-lg transition-all mt-6 font-medium shadow-md"
                   >
                     {isLoading ? <Loader2 className="animate-spin size-4" /> : "Sign In"}
                   </Button>
                 </form>
+
+                <div className="mt-6 pt-6 border-t border-blue-100">
+                  <p className="text-xs text-gray-500 text-center">Enterprise-grade security • SSL encrypted</p>
+                </div>
               </div>
             </motion.div>
 
@@ -329,7 +335,7 @@ export function LandingView() {
       </main>
 
       {/* Capabilities Section */}
-      <section id="features" className="py-24 bg-gray-50 border-y border-gray-100 overflow-hidden">
+      <section id="features" className="py-24 bg-gradient-to-b from-blue-50 to-white border-y border-blue-100 overflow-hidden">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -338,9 +344,9 @@ export function LandingView() {
             transition={{ duration: 0.6 }}
             className="text-center max-w-2xl mx-auto mb-16"
           >
-            <h2 className="text-3xl font-semibold tracking-tight mb-4">A complete HR ecosystem</h2>
-            <p className="text-gray-500 text-lg font-normal">
-              Designed for absolute clarity and speed. Every action taken in Autodigix reflects instantly across the entire organization, keeping your team perfectly aligned.
+            <h2 className="text-4xl font-bold tracking-tight mb-4 text-gray-900">Powerful Features for Modern Workforce Management</h2>
+            <p className="text-gray-600 text-lg font-normal">
+              Autodigix CRM comes packed with everything you need to manage your team efficiently and effectively.
             </p>
           </motion.div>
 
@@ -353,32 +359,47 @@ export function LandingView() {
           >
             {[
               {
-                icon: <ShieldCheck className="size-6" />,
-                title: "Admin Command Center",
-                desc: "A powerful overview of your company. Monitor live attendance, review pending leave requests, manage departments, and onboard new hires with automated welcome emails."
+                icon: <Clock className="size-6" />,
+                title: "Real-time Attendance Tracking",
+                desc: "Employees clock in/out with instant updates. Admin sees live working status, daily records, and attendance analytics from November onwards."
               },
               {
-                icon: <Users className="size-6" />,
-                title: "Employee Self-Service",
-                desc: "A dedicated portal for your staff. Employees can clock in and out, apply for time off, view the company holiday calendar, and access their historical payslips securely."
+                icon: <PlaneTakeoff className="size-6" />,
+                title: "Leave Management",
+                desc: "Employees apply for leave with date ranges. Admins approve/reject requests. System automatically excludes weekends and holidays from leave calculations."
               },
               {
                 icon: <Wallet className="size-6" />,
                 title: "Automated Payroll",
-                desc: "Run payroll for the entire company with one click. The system calculates gross and net pay based on active status, generates digital payslips, and automatically emails them."
+                desc: "Month-end payroll processing with one click. Automatic calculation of gross/net pay, deductions, LOP, tax withholding, and instant payslip generation."
+              },
+              {
+                icon: <FileText className="size-6" />,
+                title: "Digital Payslips",
+                desc: "Professional payslip PDFs generated automatically. Shows earnings, deductions, and net pay. Auto-emailed to employees with complete payment history."
+              },
+              {
+                icon: <Users className="size-6" />,
+                title: "Employee Directory",
+                desc: "Centralized employee database for admins. Manage profiles, employment details, emergency contacts, and view complete attendance analytics per employee."
+              },
+              {
+                icon: <CalendarCheck className="size-6" />,
+                title: "Holiday Calendar",
+                desc: "Company-wide holiday management. Upcoming holidays displayed to employees, automatically excluded from work calculations and leave planning."
               }
             ].map((feature, i) => (
               <motion.div 
                 key={i}
                 variants={fadeUp}
                 whileHover={{ y: -5 }}
-                className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm transition-all hover:shadow-lg"
+                className="bg-white rounded-3xl p-8 border border-blue-100 shadow-md transition-all hover:shadow-lg hover:border-blue-300"
               >
-                <div className="size-12 rounded-xl bg-black text-white flex items-center justify-center mb-6">
+                <div className="size-12 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-white flex items-center justify-center mb-6 shadow-md">
                   {feature.icon}
                 </div>
-                <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
-                <p className="text-gray-500 leading-relaxed font-normal">
+                <h3 className="text-xl font-bold mb-3 text-gray-900">{feature.title}</h3>
+                <p className="text-gray-600 leading-relaxed font-normal">
                   {feature.desc}
                 </p>
               </motion.div>
@@ -579,7 +600,7 @@ export function LandingView() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-6 sm:flex-row">
           <div className="flex items-center gap-2">
             <Building2 className="size-5 text-black" />
-            <span className="text-lg font-semibold">Autodigix HR</span>
+            <span className="text-lg font-semibold">Autodigix CRM</span>
           </div>
           <p className="text-sm text-gray-400 font-normal">
             © 2026 Autodigix. Enterprise ready.

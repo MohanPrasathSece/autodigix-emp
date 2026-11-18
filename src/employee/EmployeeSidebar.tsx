@@ -34,6 +34,7 @@ const primary = [
 ];
 
 const history = [
+  { title: "Attendance History", url: "/employee/attendance-history", icon: Clock },
   { title: "Leave History", url: "/employee/leave-history", icon: History },
   { title: "Calendar", url: "/employee/calendar", icon: CalendarDays },
 ];

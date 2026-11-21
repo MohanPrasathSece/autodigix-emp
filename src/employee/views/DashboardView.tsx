@@ -18,7 +18,7 @@ import { useHolidays, useNotifications, useLeaveRequests, useEmployees, useAtten
 import { formatLeaveDate, getLocalToday } from "@/shared/lib/dateUtils";
 import { useAuthStore } from "@/shared/store/auth";
 import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export function EmployeeDashboard() {
   const { isWorking, seconds, startWork, stopWork, isLoading } = useAttendance();
@@ -29,6 +29,13 @@ export function EmployeeDashboard() {
   const { data: employees = [] } = useEmployees();
   const { data: attendanceHistory = [] } = useAttendanceHistory();
   const navigate = useNavigate();
+
+  // Dynamic live clock ensuring 9:25 AM and 6:30 PM button states update in real-time
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Dynamically calculate the user's leaves taken
   const myLeaves = leaveRequests.filter((l: any) => l.employee_id === user?.id && l.status === "Approved");
@@ -44,7 +51,6 @@ export function EmployeeDashboard() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const isBeforeShiftStart = currentMinutes < (9 * 60 + 25); // Cannot clock in before 9:25 AM (5 mins before 9:30 AM shift start)
   const isAfterShiftEnd = currentMinutes >= (18 * 60 + 30);   // Shift ends at 6:30 PM

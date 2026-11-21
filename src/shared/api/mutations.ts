@@ -407,23 +407,35 @@ export const useLogAttendance = () => {
         // Check if already clocked in today
         const { data: existing } = await supabase
           .from('attendance_history')
-          .select('id')
+          .select('id, status, hours')
           .eq('employee_id', employee_id)
           .eq('date', today)
           .maybeSingle();
 
         if (existing) {
-          throw new Error("Already clocked in today.");
+          if (existing.status === 'Clocked In') {
+            throw new Error("Already clocked in.");
+          }
+          // Resume session: update existing row with new session start and preserve prior accumulated hours
+          const { error } = await supabase
+            .from('attendance_history')
+            .update({
+              status: 'Clocked In',
+              clock_in_time: clockTime,
+              clock_out_time: null,
+            })
+            .eq('id', existing.id);
+          if (error) throw new Error(error.message);
+        } else {
+          const { error } = await supabase.from('attendance_history').insert([{
+            date: today,
+            employee_id,
+            hours: 0,
+            status: 'Clocked In',
+            clock_in_time: clockTime
+          }]);
+          if (error) throw new Error(error.message);
         }
-
-        const { error } = await supabase.from('attendance_history').insert([{
-          date: today,
-          employee_id,
-          hours: 0,
-          status: 'Clocked In',
-          clock_in_time: clockTime
-        }]);
-        if (error) throw new Error(error.message);
 
         // Sync to Google Sheets
         await syncToSheets({
@@ -440,10 +452,10 @@ export const useLogAttendance = () => {
         const shiftEndDate = new Date(rawOutDate);
         shiftEndDate.setHours(18, 30, 0, 0);
 
-        // Fetch clock_in_time to compute accurate total hours capped at 6:30 PM
+        // Fetch clock_in_time and existing hours to compute accurate total hours capped at 6:30 PM
         const { data: record } = await supabase
           .from('attendance_history')
-          .select('clock_in_time')
+          .select('clock_in_time, hours')
           .eq('employee_id', employee_id)
           .eq('date', today)
           .maybeSingle();
@@ -458,7 +470,8 @@ export const useLogAttendance = () => {
           const inDate = new Date(record.clock_in_time);
           loginTimeStr = inDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
           const diffMs = Math.max(0, effectiveOutDate.getTime() - inDate.getTime());
-          totalHours = Math.round((diffMs / 3_600_000) * 100) / 100;
+          const sessionHours = diffMs / 3_600_000;
+          totalHours = Math.round(((Number(record.hours) || 0) + sessionHours) * 100) / 100;
         }
 
         const { error } = await supabase.from('attendance_history').update({

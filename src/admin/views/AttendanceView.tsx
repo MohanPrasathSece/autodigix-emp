@@ -118,8 +118,8 @@ function AbsenceCalendar() {
           const isWeekend = day.getDay() === 0 || day.getDay() === 6;
 
           return (
-            <div 
-              key={i} 
+            <div
+              key={i}
               className={cn(
                 "min-h-[80px] rounded-xl border p-1 transition-colors relative flex flex-col",
                 !isCurrentMonth && "opacity-30 bg-muted/50",
@@ -134,7 +134,7 @@ function AbsenceCalendar() {
               )}>
                 {format(day, "d")}
               </span>
-              
+
               <div className="flex-1 flex flex-wrap gap-1 mt-1 content-start">
                 {absences.map((ab, idx: any) => (
                   <Popover key={idx}>
@@ -521,20 +521,20 @@ export function AttendancePage() {
 
                   <div className="mt-8 mb-2 flex flex-col items-center justify-center">
                     <CircularProgress value={progress} color={ringColor} />
-                    
+
                     {/* Admin Action Buttons */}
                     <div className="mt-4 flex h-10 w-full items-center justify-center">
                       {isPast630 ? (
                         <span className="text-xs font-medium text-muted-foreground bg-muted/60 px-3 py-1 rounded-lg">Shift Ended (6:30 PM)</span>
+                      ) : canStop ? (
+                        <Button variant="outline" size="sm" className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950" onClick={() => setConfirmAction({ type: "Stop", empId: emp.id, name: emp.name })}>
+                          <Square className="mr-1.5 size-3" /> Force Stop
+                        </Button>
                       ) : isBefore930 ? (
                         <span className="text-xs font-medium text-muted-foreground bg-muted/60 px-3 py-1 rounded-lg">Opens at 9:30 AM</span>
                       ) : canStart ? (
                         <Button variant="outline" size="sm" className="rounded-xl border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-900 dark:hover:bg-emerald-950" onClick={() => setConfirmAction({ type: "Start", empId: emp.id, name: emp.name })}>
                           <Play className="mr-1.5 size-3" /> Force Start
-                        </Button>
-                      ) : canStop ? (
-                        <Button variant="outline" size="sm" className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950" onClick={() => setConfirmAction({ type: "Stop", empId: emp.id, name: emp.name })}>
-                          <Square className="mr-1.5 size-3" /> Force Stop
                         </Button>
                       ) : (
                         <span className="text-xs text-muted-foreground/50">No Actions Available</span>
@@ -549,7 +549,7 @@ export function AttendancePage() {
                       {emp.initials}
                     </div>
                   )}
-                  
+
                   <h3 className="text-base font-bold">{emp.name}</h3>
                   <p className="text-xs text-muted-foreground font-medium mb-4">{emp.role}</p>
 
@@ -591,13 +591,13 @@ export function AttendancePage() {
               Force {confirmAction?.type} Work
             </DialogTitle>
             <DialogDescription className="pt-3">
-              Are you sure you want to manually <strong>{confirmAction?.type?.toLowerCase()}</strong> the shift for {confirmAction?.name}? 
+              Are you sure you want to manually <strong>{confirmAction?.type?.toLowerCase()}</strong> the shift for {confirmAction?.name}?
               This will create an admin override log in the system.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4 gap-2 sm:gap-0">
             <Button variant="outline" className="rounded-xl" onClick={() => setConfirmAction(null)}>Cancel</Button>
-            <Button 
+            <Button
               className={cn("rounded-xl text-white", confirmAction?.type === "Stop" ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700")}
               onClick={handleConfirm}
               disabled={isConfirming}

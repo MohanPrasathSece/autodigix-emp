@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import { getLocalToday, parseLeaveDate } from './dateUtils';
+import { getLocalToday, parseLeaveDate, toLocalISO } from './dateUtils';
 
 /**
  * Checks all active employees at/after 9:35 AM on working days:
@@ -33,8 +33,10 @@ export async function checkAndSendClockInReminders(): Promise<{ checked: boolean
       .select('date');
 
     const isHoliday = (holidays || []).some((h: any) => {
-      const parsed = parseLeaveDate(h.date);
-      return parsed ? String(h.date).slice(0, 10) === todayStr : false;
+      const dStr = String(h?.date ?? "").slice(0, 10);
+      if (dStr === todayStr) return true;
+      const parsed = parseLeaveDate(h?.date);
+      return parsed ? toLocalISO(parsed) === todayStr : false;
     });
 
     if (isHoliday) {
@@ -95,7 +97,7 @@ export async function checkAndSendClockInReminders(): Promise<{ checked: boolean
       .from('notifications')
       .select('target_id')
       .eq('tone', 'clock_in_reminder')
-      .eq('time', todayStr);
+      .like('time', `${todayStr}%`);
 
     const alreadyRemindedIds = new Set(
       (alreadySentNotifications || []).map((n: any) => n.target_id)
@@ -164,9 +166,9 @@ export async function checkAndSendClockInReminders(): Promise<{ checked: boolean
         // Record in notifications table to prevent any duplicate dispatch across devices
         await supabase.from('notifications').insert([{
           target_id: emp.id,
-          title: `Clock-In Reminder sent`,
-          body: `Shift started at 9:30 AM. Attendance reminder dispatched to ${targetEmail}.`,
-          time: todayStr,
+          title: `Clock-In Reminder`,
+          body: `Shift started at 9:30 AM. Attendance reminder dispatched to your email (${targetEmail}).`,
+          time: `${todayStr}, ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`,
           tone: 'clock_in_reminder',
         }]);
 

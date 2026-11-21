@@ -96,7 +96,8 @@ export async function checkAndSendClockInReminders(): Promise<{ checked: boolean
     const { data: alreadySentNotifications } = await supabase
       .from('notifications')
       .select('target_id')
-      .eq('tone', 'clock_in_reminder')
+      .eq('title', 'Clock-In Reminder')
+      .eq('tone', 'warning')
       .like('time', `${todayStr}%`);
 
     const alreadyRemindedIds = new Set(
@@ -169,7 +170,7 @@ export async function checkAndSendClockInReminders(): Promise<{ checked: boolean
           title: `Clock-In Reminder`,
           body: `Shift started at 9:30 AM. Attendance reminder dispatched to your email (${targetEmail}).`,
           time: `${todayStr}, ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`,
-          tone: 'clock_in_reminder',
+          tone: 'warning',
         }]);
 
         if (typeof window !== 'undefined') {

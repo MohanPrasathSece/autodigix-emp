@@ -308,14 +308,19 @@ export function AttendancePage() {
   // "On Leave" is derived from today's approved-leave (absent_dates) entries.
   const onLeaveToday = (emp: any): boolean => isOnLeaveOn(emp.absentDates, today);
 
-  // Total hours worked today = accumulated hours + the running session.
+  // Total hours worked today = accumulated hours + the running session (strictly capped at 6:30 PM).
   const getTotalHours = (empId: string): number => {
     const rec = todayRecordsMap.get(empId);
     if (!rec) return 0;
     let total = Math.max(0, Number(rec.hours) || 0);
     if (rec.status === "Clocked In" && rec.clock_in_time) {
       const start = new Date(rec.clock_in_time).getTime();
-      if (!isNaN(start)) total += Math.max(0, (now.getTime() - start) / 3600000);
+      if (!isNaN(start)) {
+        const shiftEnd = new Date(rec.clock_in_time);
+        shiftEnd.setHours(18, 30, 0, 0);
+        const endMs = Math.min(now.getTime(), shiftEnd.getTime());
+        total += Math.max(0, (endMs - start) / 3600000);
+      }
     }
     return Math.max(0, Number(total.toFixed(2)));
   };
@@ -325,10 +330,13 @@ export function AttendancePage() {
     return Math.min(100, Math.round((getTotalHours(empId) / SHIFT_HOURS) * 100));
   };
 
-  // Coherent per-employee status for the live board.
+  // Coherent per-employee status for the live board (auto-ends at 6:30 PM).
   const getEmployeeState = (emp: any): EmpState => {
     const rec = todayRecordsMap.get(emp.id);
-    if (rec?.status === "Clocked In") return "Working";
+    const isPast630 = now.getHours() > 18 || (now.getHours() === 18 && now.getMinutes() >= 30);
+    if (rec?.status === "Clocked In") {
+      return isPast630 ? "Clocked Out" : "Working";
+    }
     if (onLeaveToday(emp)) return "On Leave";
     if (rec?.status === "Clocked Out") return "Clocked Out";
     return "Absent";
@@ -341,6 +349,23 @@ export function AttendancePage() {
 
   const handleConfirm = async () => {
     if (!confirmAction) return;
+
+    const nowCheck = new Date();
+    const isPast630 = nowCheck.getHours() > 18 || (nowCheck.getHours() === 18 && nowCheck.getMinutes() >= 30);
+    const isBefore930 = nowCheck.getHours() < 9 || (nowCheck.getHours() === 9 && nowCheck.getMinutes() < 30);
+
+    if (confirmAction.type === "Start" && isBefore930) {
+      toast.error("Shift Not Started", { description: "Force start cannot be done before 9:30 AM." });
+      setConfirmAction(null);
+      return;
+    }
+
+    if (confirmAction.type === "Stop" && isPast630) {
+      toast.error("Shift Ended", { description: "Shifts automatically end at 6:30 PM. Force stop is disabled after 6:30 PM." });
+      setConfirmAction(null);
+      return;
+    }
+
     setIsConfirming(true);
 
     try {
@@ -372,14 +397,17 @@ export function AttendancePage() {
       } else {
         // Force Stop: accumulate this session's length onto the day's total.
         const startMs = existing?.clock_in_time ? new Date(existing.clock_in_time).getTime() : NaN;
-        const sessionHours = isNaN(startMs) ? 0 : Math.max(0, (Date.now() - startMs) / 3600000);
+        const shiftEnd = new Date(startMs || Date.now());
+        shiftEnd.setHours(18, 30, 0, 0);
+        const effectiveEndMs = Math.min(Date.now(), shiftEnd.getTime());
+        const sessionHours = isNaN(startMs) ? 0 : Math.max(0, (effectiveEndMs - startMs) / 3600000);
         const totalHours = Number(((existing ? Math.max(0, Number(existing.hours) || 0) : 0) + sessionHours).toFixed(2));
 
         if (existing) {
           const { error } = await supabase.from('attendance_history').update({
             hours: Math.max(0, totalHours),
             status: 'Clocked Out',
-            clock_out_time: nowIso,
+            clock_out_time: new Date(effectiveEndMs).toISOString(),
           }).eq('id', existing.id);
           if (error) throw new Error(error.message);
         } else {
@@ -388,7 +416,7 @@ export function AttendancePage() {
             employee_id: confirmAction.empId,
             hours: Math.max(0, totalHours),
             status: 'Clocked Out',
-            clock_out_time: nowIso,
+            clock_out_time: new Date(effectiveEndMs).toISOString(),
           }]);
           if (error) throw new Error(error.message);
         }
@@ -477,8 +505,10 @@ export function AttendancePage() {
               else if (state === "Absent") ringColor = "#ef4444"; // red-500
               else if (state === "Clocked Out") ringColor = "#10b981"; // emerald-500
 
-              const canStart = !working && !onLeave;
-              const canStop = working;
+              const isPast630 = now.getHours() > 18 || (now.getHours() === 18 && now.getMinutes() >= 30);
+              const isBefore930 = now.getHours() < 9 || (now.getHours() === 9 && now.getMinutes() < 30);
+              const canStart = !working && !onLeave && !isPast630 && !isBefore930;
+              const canStop = working && !isPast630;
 
               return (
                 <div key={emp.id} className="rounded-3xl border bg-card p-6 shadow-soft transition-all hover:-translate-y-1 hover:shadow-md flex flex-col items-center text-center relative overflow-hidden group">
@@ -494,7 +524,11 @@ export function AttendancePage() {
                     
                     {/* Admin Action Buttons */}
                     <div className="mt-4 flex h-10 w-full items-center justify-center">
-                      {canStart ? (
+                      {isPast630 ? (
+                        <span className="text-xs font-medium text-muted-foreground bg-muted/60 px-3 py-1 rounded-lg">Shift Ended (6:30 PM)</span>
+                      ) : isBefore930 ? (
+                        <span className="text-xs font-medium text-muted-foreground bg-muted/60 px-3 py-1 rounded-lg">Opens at 9:30 AM</span>
+                      ) : canStart ? (
                         <Button variant="outline" size="sm" className="rounded-xl border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-900 dark:hover:bg-emerald-950" onClick={() => setConfirmAction({ type: "Start", empId: emp.id, name: emp.name })}>
                           <Play className="mr-1.5 size-3" /> Force Start
                         </Button>

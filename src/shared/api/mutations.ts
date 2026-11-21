@@ -393,6 +393,17 @@ export const useLogAttendance = () => {
       const clockTime = timestamp || new Date().toISOString();
 
       if (action === 'Clock In') {
+        const inDate = new Date(clockTime);
+        const currentMins = inDate.getHours() * 60 + inDate.getMinutes();
+
+        // Enforce clock-in cannot happen before 9:25 AM (5 minutes before 9:30 AM shift start)
+        if (currentMins < 9 * 60 + 25) {
+          throw new Error("Clock-in is not open yet. Shifts start at 9:30 AM (clock-in allowed from 9:25 AM).");
+        }
+        if (currentMins >= 18 * 60 + 30) {
+          throw new Error("Today's shift ended at 6:30 PM. Clock-in is closed for today.");
+        }
+
         // Check if already clocked in today
         const { data: existing } = await supabase
           .from('attendance_history')
@@ -424,15 +435,12 @@ export const useLogAttendance = () => {
         });
 
       } else {
-        const clockOutTime = clockTime;
-        const { error } = await supabase.from('attendance_history').update({
-          hours,
-          status: 'Clocked Out',
-          clock_out_time: clockOutTime
-        }).eq('employee_id', employee_id).eq('date', today);
-        if (error) throw new Error(error.message);
+        // Enforce 6:30 PM shift end ceiling: if someone forgets or clocks out late, cap at 6:30 PM
+        const rawOutDate = new Date(clockTime);
+        const shiftEndDate = new Date(rawOutDate);
+        shiftEndDate.setHours(18, 30, 0, 0);
 
-        // Fetch clock_in_time to compute accurate total hours
+        // Fetch clock_in_time to compute accurate total hours capped at 6:30 PM
         const { data: record } = await supabase
           .from('attendance_history')
           .select('clock_in_time')
@@ -440,13 +448,25 @@ export const useLogAttendance = () => {
           .eq('date', today)
           .maybeSingle();
 
+        // If clocking out after 6:30 PM, cap effective clock_out_time to 6:30 PM
+        const effectiveOutDate = rawOutDate.getTime() > shiftEndDate.getTime() ? shiftEndDate : rawOutDate;
+        const clockOutTime = effectiveOutDate.toISOString();
+
         let totalHours = hours;
         let loginTimeStr = '';
         if (record?.clock_in_time) {
-          loginTimeStr = new Date(record.clock_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          const diffMs = new Date(clockOutTime).getTime() - new Date(record.clock_in_time).getTime();
+          const inDate = new Date(record.clock_in_time);
+          loginTimeStr = inDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const diffMs = Math.max(0, effectiveOutDate.getTime() - inDate.getTime());
           totalHours = Math.round((diffMs / 3_600_000) * 100) / 100;
         }
+
+        const { error } = await supabase.from('attendance_history').update({
+          hours: totalHours,
+          status: 'Clocked Out',
+          clock_out_time: clockOutTime
+        }).eq('employee_id', employee_id).eq('date', today);
+        if (error) throw new Error(error.message);
 
         // Sync to Google Sheets
         await syncToSheets({

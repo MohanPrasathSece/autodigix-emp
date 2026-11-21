@@ -62,6 +62,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
         const totalHours = Number((Math.max(0, Number(record.hours) || 0) + sessionSeconds / 3600).toFixed(2));
         await supabase.from('attendance_history').update({
           status: 'Clocked Out',
+          clock_out_time: new Date(finalEndTime).toISOString(),
           hours: totalHours,
         }).eq('id', record.id);
       }
@@ -89,6 +90,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
           const totalHours = Number((Math.max(0, Number(todayRecord.hours) || 0) + sessionSeconds / 3600).toFixed(2));
           await supabase.from('attendance_history').update({
             status: 'Clocked Out',
+            clock_out_time: new Date(finalEndTime).toISOString(),
             hours: totalHours,
           }).eq('id', todayRecord.id);
           setBaseSeconds(0);
@@ -121,7 +123,16 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
   const startWork = async () => {
     if (!user?.id) return;
 
-    if (new Date().getHours() >= 19 || (new Date().getHours() === 18 && new Date().getMinutes() >= 30)) {
+    const nowTime = new Date();
+    const currentMins = nowTime.getHours() * 60 + nowTime.getMinutes();
+
+    // Cannot clock in before 9:25 AM (5 minutes before 9:30 AM shift start)
+    if (currentMins < 9 * 60 + 25) {
+      toast.error("Clock-In Not Open", { description: "Clock-in opens at 9:25 AM (5 minutes before 9:30 AM shift start)." });
+      return;
+    }
+
+    if (currentMins >= 18 * 60 + 30) {
       toast.error("Shift Ended", { description: "Today's shift ended at 6:30 PM. Clock-in is closed for today." });
       return;
     }
@@ -146,11 +157,21 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
   const stopWork = async (autoStopAt7: boolean = false) => {
     if (!user?.id || !clockInTime) return;
 
-    let finalEndTime = Date.now();
+    const now = new Date();
+    const isPast630 = now.getHours() > 18 || (now.getHours() === 18 && now.getMinutes() >= 30);
 
-    if (autoStopAt7) {
-      const shiftEnd = new Date(clockInTime);
-      shiftEnd.setHours(18, 30, 0, 0);
+    // If manual clock out attempted after 6:30 PM, disable it
+    if (!autoStopAt7 && isPast630) {
+      toast.error("Shift Ended", { description: "Shifts automatically end at 6:30 PM. Clock out is closed." });
+      return;
+    }
+
+    let finalEndTime = Date.now();
+    const shiftEnd = new Date(clockInTime);
+    shiftEnd.setHours(18, 30, 0, 0);
+
+    // If autoStop or current time is past 6:30 PM, strictly clamp end time to 6:30 PM
+    if (autoStopAt7 || finalEndTime >= shiftEnd.getTime()) {
       finalEndTime = shiftEnd.getTime();
     }
 
@@ -188,12 +209,12 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
       const now = new Date();
       const isAfterShiftEnd = now.getHours() > 18 || (now.getHours() === 18 && now.getMinutes() >= 30);
       if (isAfterShiftEnd) {
-         if (!stoppingRef.current) {
-           stoppingRef.current = true;
-           stopWork(true).finally(() => { stoppingRef.current = false; });
-         }
+        if (!stoppingRef.current) {
+          stoppingRef.current = true;
+          stopWork(true).finally(() => { stoppingRef.current = false; });
+        }
       } else {
-         setSeconds(baseSeconds + Math.max(0, Math.floor((now.getTime() - clockInTime) / 1000)));
+        setSeconds(baseSeconds + Math.max(0, Math.floor((now.getTime() - clockInTime) / 1000)));
       }
     }, 1000);
 

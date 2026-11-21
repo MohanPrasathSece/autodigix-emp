@@ -94,8 +94,8 @@ export function AdminDashboardView() {
     let timeLabel = h.date;
     if (h.created_at) {
       const d = new Date(h.created_at);
-      if (isOut && d.getHours() >= 19) {
-        d.setHours(19, 0, 0, 0);
+      if (isOut && (d.getHours() > 18 || (d.getHours() === 18 && d.getMinutes() >= 30))) {
+        d.setHours(18, 30, 0, 0);
       }
       timeLabel = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     }

@@ -1,5 +1,6 @@
-import { Bell, Moon, Sun, LogOut } from "lucide-react";
+import { Bell, Moon, Sun, LogOut, Clock, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { useNotificationRead } from "@/shared/hooks/use-notification-read";
 import { useAuthStore } from "@/shared/store/auth";
 
 export function AppTopbar() {
+  const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const { data: notifications = [] } = useNotifications(user?.id, user?.role === 'admin');
   const { data: employees = [] } = useEmployees();
@@ -33,6 +35,33 @@ export function AppTopbar() {
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-md sm:px-6">
       <SidebarTrigger className="shrink-0" />
       <div className="ml-auto flex items-center gap-1.5">
+        {user?.role === 'admin' && (
+          location.pathname.startsWith('/admin') ? (
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border-primary/30 text-primary hover:bg-primary/10 font-semibold text-xs h-9 px-3 mr-1"
+            >
+              <Link to="/employee/dashboard">
+                <Clock className="size-3.5 text-primary" />
+                <span>My Employee View (Clock In / Out)</span>
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              asChild
+              size="sm"
+              variant="default"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl font-semibold text-xs h-9 px-3 mr-1 shadow-xs"
+            >
+              <Link to="/admin/dashboard">
+                <ShieldCheck className="size-3.5" />
+                <span>Back to Admin Portal</span>
+              </Link>
+            </Button>
+          )
+        )}
         <Button
           size="icon"
           variant="ghost"
@@ -101,6 +130,23 @@ export function AppTopbar() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {user?.role === 'admin' && (
+              <>
+                <DropdownMenuItem asChild className="cursor-pointer rounded-lg font-medium">
+                  <Link to="/employee/dashboard" className="flex items-center gap-2">
+                    <Clock className="size-4 text-primary" />
+                    <span>My Employee View (Clock In / Out)</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer rounded-lg font-medium">
+                  <Link to="/admin/dashboard" className="flex items-center gap-2">
+                    <ShieldCheck className="size-4 text-blue-600" />
+                    <span>Admin Portal</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem 
               className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-950 cursor-pointer rounded-lg" 
               onClick={() => {

@@ -13,6 +13,7 @@ import {
   Sun,
   ClipboardList,
   LogOut,
+  Clock,
 } from "lucide-react";
 import {
   Sidebar,
@@ -88,6 +89,24 @@ export function AdminSidebar() {
           </div>
         </div>
       </SidebarHeader>
+      
+      {/* Direct Quick Link to Personal Employee View */}
+      <div className="p-2 border-b bg-primary/5">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              asChild 
+              tooltip="My Employee View (Clock In / Out)"
+              className="bg-primary/10 hover:bg-primary/20 text-primary font-semibold border border-primary/20 rounded-xl h-9"
+            >
+              <Link to="/employee/dashboard">
+                <Clock className="size-4 shrink-0 text-primary" />
+                <span className="truncate">My Employee View (Clock In / Out)</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </div>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Management</SidebarGroupLabel>

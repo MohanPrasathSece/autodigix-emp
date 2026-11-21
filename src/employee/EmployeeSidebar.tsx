@@ -12,7 +12,6 @@ import {
   History,
   FileText,
   LogOut,
-  ShieldCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -47,6 +46,7 @@ const account = [
 export function EmployeeSidebar() {
   const { pathname } = useLocation();
   const isActive = (u: string) => pathname.startsWith(u);
+  const user = useAuthStore((state) => state.user);
 
   const renderItems = (items: typeof primary) =>
     items.map((item) => (
@@ -73,26 +73,6 @@ export function EmployeeSidebar() {
           </div>
         </div>
       </SidebarHeader>
-
-      {/* For admin accounts: Direct button back to Admin Portal */}
-      {user?.role === 'admin' && (
-        <div className="p-2 border-b bg-blue-500/10 dark:bg-blue-950/30">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton 
-                asChild 
-                tooltip="Back to Admin Portal"
-                className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold rounded-xl h-9 shadow-xs"
-              >
-                <Link to="/admin/dashboard">
-                  <ShieldCheck className="size-4 shrink-0" />
-                  <span className="truncate font-semibold">Back to Admin Portal</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </div>
-      )}
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>My Portal</SidebarGroupLabel>

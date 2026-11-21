@@ -20,6 +20,7 @@ import { useAuthStore } from "@/shared/store/auth";
 export function AppTopbar() {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
+  const isVinnuAdmin = (user?.email || "").toLowerCase() === "nvinnu.bai@gmail.com";
   const { data: notifications = [] } = useNotifications(user?.id, user?.role === 'admin');
   const { data: employees = [] } = useEmployees();
   const markAsRead = useMarkNotificationRead();
@@ -35,17 +36,18 @@ export function AppTopbar() {
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-md sm:px-6">
       <SidebarTrigger className="shrink-0" />
       <div className="ml-auto flex items-center gap-1.5">
-        {user?.role === 'admin' && (
+        {isVinnuAdmin && (
           location.pathname.startsWith('/admin') ? (
             <Button
               asChild
               size="sm"
               variant="outline"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border-primary/30 text-primary hover:bg-primary/10 font-semibold text-xs h-9 px-3 mr-1"
+              className="inline-flex items-center gap-1.5 rounded-xl border-primary/30 text-primary hover:bg-primary/10 font-semibold text-xs h-8 sm:h-9 px-2.5 sm:px-3 mr-1"
             >
               <Link to="/employee/dashboard">
                 <Clock className="size-3.5 text-primary" />
-                <span>My Employee View (Clock In / Out)</span>
+                <span className="hidden xs:inline sm:inline">My Employee View (Clock In / Out)</span>
+                <span className="inline xs:hidden sm:hidden">Clock In / Out</span>
               </Link>
             </Button>
           ) : (
@@ -53,7 +55,7 @@ export function AppTopbar() {
               asChild
               size="sm"
               variant="default"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl font-semibold text-xs h-9 px-3 mr-1 shadow-xs"
+              className="inline-flex items-center gap-1.5 rounded-xl font-semibold text-xs h-8 sm:h-9 px-2.5 sm:px-3 mr-1 shadow-xs"
             >
               <Link to="/admin/dashboard">
                 <ShieldCheck className="size-3.5" />
@@ -130,7 +132,7 @@ export function AppTopbar() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {user?.role === 'admin' && (
+            {isVinnuAdmin && (
               <>
                 <DropdownMenuItem asChild className="cursor-pointer rounded-lg font-medium">
                   <Link to="/employee/dashboard" className="flex items-center gap-2">
